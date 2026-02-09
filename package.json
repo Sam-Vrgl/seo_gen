@@ -1,0 +1,8 @@
+{
+  "name": "seo_gen_monorepo",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "private": true
+}
