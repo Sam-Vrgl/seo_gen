@@ -21,3 +21,26 @@ db.run(`
 `);
 
 console.log("Database initialized");
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS search_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    query TEXT,
+    source TEXT,
+    timestamp DATE DEFAULT (datetime('now', 'localtime'))
+  );
+`);
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS articles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    authors TEXT,
+    abstract TEXT,
+    url TEXT,
+    source TEXT,
+    published_date DATE,
+    search_job_id INTEGER,
+    FOREIGN KEY(search_job_id) REFERENCES search_jobs(id)
+  );
+`);

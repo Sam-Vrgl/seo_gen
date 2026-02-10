@@ -1,49 +1,37 @@
-import { Elysia } from "elysia";
-// import { db } from "./db";
-
-// Mock User Type
-type User = {
-  id: number;
-  name: string;
-  role: string;
-};
-
-// Auth Middleware
-const ensureAuthenticated = (app: Elysia) =>
-  app.derive(() => {
-    // TODO: Replace with JWT/OAuth check in production
-    // For now, we just check NODE_ENV
-    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
-      return {
-        user: {
-          id: 1,
-          name: "Dev Admin",
-          role: "admin",
-        } as User,
-      };
-    }
-    
-    // In production, we would throw an error if not authenticated
-    // throw new Error("Unauthorized");
-    return { user: null };
-  });
+import { Elysia, t } from "elysia";
+import { cors } from "@elysiajs/cors";
+import { searchAggregator } from "./aggregator";
 
 const app = new Elysia()
-  .use(ensureAuthenticated)
-  .get("/", () => "Hello Elysia")
-  .get("/api/projects", ({ user }) => {
-    if (!user) {
-      return { error: "Unauthorized" };
+  .use(cors())
+  .get(
+    "/search",
+    async ({ query }) => {
+      const { q, limit, includeArxiv, includePubmed, startDate, endDate, includeAbstracts } = query;
+      if (!q) {
+        return [];
+      }
+      return await searchAggregator(q, {
+        limit: limit ? parseInt(limit) : 5,
+        includeArxiv: includeArxiv === undefined ? undefined : includeArxiv === 'true',
+        includePubmed: includePubmed === undefined ? undefined : includePubmed === 'true',
+        startDate,
+        endDate,
+        includeAbstracts: includeAbstracts === 'true'
+      });
+    },
+    {
+      query: t.Object({
+        q: t.String(),
+        limit: t.Optional(t.String()),
+        includeArxiv: t.Optional(t.String()),
+        includePubmed: t.Optional(t.String()),
+        startDate: t.Optional(t.String()),
+        endDate: t.Optional(t.String()),
+        includeAbstracts: t.Optional(t.String())
+      }),
     }
-    return {
-      message: `Hello ${user.name}, here are your projects`,
-      projects: ["Project A", "Project B"],
-    };
-  })
-  .listen(3000);
+  );
 
 export type App = typeof app;
-
-console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
-);
+export { app };

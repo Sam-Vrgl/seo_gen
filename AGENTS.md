@@ -1,5 +1,8 @@
 # Project Context: AI Scientific Article Generator
 
+## Environment
+this project runs in a windows environment. Use windows commands to run the project.
+
 ## 1. Project Mission
 We are building a **Bun-first, TypeScript-only** web application that acts as an autonomous scientific research agent.
 **Core Loop:** User Input (Topic) → Search External APIs (ArXiv, PubMed) → Filter Results → Fetch Full Text (HTML/PDF) → LLM Synthesis → Final Markdown Article.
