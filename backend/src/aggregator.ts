@@ -1,4 +1,10 @@
 import { XMLParser } from "fast-xml-parser";
+import { load } from 'cheerio';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const pdfLib = require('pdf-parse');
+const PDFParse = pdfLib.PDFParse || pdfLib.default?.PDFParse;
 
 export interface Article {
   title: string;
@@ -7,6 +13,7 @@ export interface Article {
   url: string;
   source: "ArXiv" | "PubMed";
   published_date: string;
+  fullText?: string;
 }
 
 const parser = new XMLParser({
@@ -18,7 +25,68 @@ const formatDateForArxiv = (dateStr: string): string => {
     return dateStr.replace(/-/g, "") + "0000";
 };
 
-export const fetchArxivPapers = async (query: string, limit: number = 5, startDate?: string, endDate?: string): Promise<Article[]> => {
+const fetchArxivHtml = async (idUrl: string): Promise<string | undefined> => {
+    try {
+        const arxivId = idUrl.split('/abs/').pop();
+        if (!arxivId) return undefined;
+
+        // Try to fetch HTML view
+        const htmlUrl = `https://arxiv.org/html/${arxivId}`;
+        console.log(`Fetching HTML fetching for ${arxivId} at ${htmlUrl}`);
+        const response = await fetch(htmlUrl);
+        
+        if (!response.ok) {
+            console.warn(`Failed to fetch HTML for ${arxivId}: ${response.status}`);
+            return undefined;
+        }
+
+        const html = await response.text();
+        const $ = load(html);
+        
+        // ArXiv HTML usually has content in specific classes
+        // .ltx_page_main is a common container for the converted LaTeX
+        let content = $('.ltx_page_main').text();
+        
+        if (!content || content.length < 500) {
+             // Fallback to body if specific class not found or too short
+             content = $('body').text();
+        }
+
+        // Clean up: remove excessive whitespace
+        return content.replace(/\s+/g, ' ').trim();
+    } catch (error) {
+        console.error("Error fetching ArXiv HTML:", error);
+        return undefined;
+    }
+}
+
+const fetchArxivPdf = async (idUrl: string): Promise<string | undefined> => {
+    try {
+        const arxivId = idUrl.split('/abs/').pop();
+        if (!arxivId) return undefined;
+
+        const pdfUrl = `https://arxiv.org/pdf/${arxivId}.pdf`;
+        console.log(`Fetching PDF for ${arxivId} at ${pdfUrl}`);
+        
+        const response = await fetch(pdfUrl);
+        if (!response.ok) {
+            console.warn(`Failed to fetch PDF for ${arxivId}: ${response.status}`);
+            return undefined;
+        }
+
+        const buffer = await response.arrayBuffer();
+        const parser = new PDFParse({ data: Buffer.from(buffer) });
+        const data = await parser.getText();
+        
+        // Basic cleanup
+        return data.text.replace(/\s+/g, ' ').trim();
+    } catch (error) {
+        console.error("Error fetching ArXiv PDF:", error);
+        return undefined;
+    }
+}
+
+export const fetchArxivPapers = async (query: string, limit: number = 5, startDate?: string, endDate?: string, includeFullPapers: boolean = false): Promise<Article[]> => {
   try {
     let searchQuery = `all:${encodeURIComponent(query)}`;
     
@@ -40,16 +108,33 @@ export const fetchArxivPapers = async (query: string, limit: number = 5, startDa
     
     const entriesArray = Array.isArray(entries) ? entries : [entries];
 
-    return entriesArray.map((entry: any) => ({
-      title: entry.title.replace(/\n/g, " ").trim(),
-      authors: Array.isArray(entry.author) 
-        ? entry.author.map((a: any) => a.name) 
-        : [entry.author.name],
-      abstract: entry.summary.replace(/\n/g, " ").trim(),
-      url: entry.id,
-      source: "ArXiv",
-      published_date: entry.published,
+    const papers = await Promise.all(entriesArray.map(async (entry: any) => {
+      let fullText: string | undefined = undefined;
+      if (includeFullPapers) {
+          // Try HTML first
+          fullText = await fetchArxivHtml(entry.id);
+          
+          // Fallback to PDF if HTML failed
+          if (!fullText) {
+              console.log(`HTML fetch failed for ${entry.id}, trying PDF fallback...`);
+              fullText = await fetchArxivPdf(entry.id);
+          }
+      }
+
+      return {
+        title: entry.title.replace(/\n/g, " ").trim(),
+        authors: Array.isArray(entry.author) 
+          ? entry.author.map((a: any) => a.name) 
+          : [entry.author.name],
+        abstract: entry.summary.replace(/\n/g, " ").trim(),
+        url: entry.id,
+        source: "ArXiv",
+        published_date: entry.published,
+        fullText
+      } as Article;
     }));
+
+    return papers;
   } catch (error) {
     console.error("Error fetching from ArXiv:", error);
     return [];
@@ -164,6 +249,7 @@ export interface SearchOptions {
     startDate?: string; // YYYY-MM-DD
     endDate?: string;   // YYYY-MM-DD
     includeAbstracts?: boolean;
+    includeFullPapers?: boolean;
 }
 
 export const searchAggregator = async (query: string, options: SearchOptions = {}): Promise<Article[]> => {
@@ -173,13 +259,14 @@ export const searchAggregator = async (query: string, options: SearchOptions = {
         includePubmed = true,
         startDate,
         endDate,
-        includeAbstracts = false
+        includeAbstracts = false,
+        includeFullPapers = false
     } = options;
 
     const promises: Promise<Article[]>[] = [];
 
     if (includeArxiv) {
-        promises.push(fetchArxivPapers(query, limit, startDate, endDate));
+        promises.push(fetchArxivPapers(query, limit, startDate, endDate, includeFullPapers));
     }
     
     if (includePubmed) {

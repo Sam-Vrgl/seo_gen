@@ -2,6 +2,8 @@ import { Elysia, t } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { searchAggregator } from "./aggregator";
 
+const phrases = require("../phrases.json");
+
 const app = new Elysia()
   .use(cors())
   .get(
@@ -17,7 +19,8 @@ const app = new Elysia()
         includePubmed: includePubmed === undefined ? undefined : includePubmed === 'true',
         startDate,
         endDate,
-        includeAbstracts: includeAbstracts === 'true'
+        includeAbstracts: includeAbstracts === 'true',
+        includeFullPapers: query.includeFullPapers === 'true'
       });
     },
     {
@@ -28,8 +31,31 @@ const app = new Elysia()
         includePubmed: t.Optional(t.String()),
         startDate: t.Optional(t.String()),
         endDate: t.Optional(t.String()),
-        includeAbstracts: t.Optional(t.String())
+        includeAbstracts: t.Optional(t.String()),
+        includeFullPapers: t.Optional(t.String())
       }),
+    }
+  )
+  .post(
+    "/analyze",
+    async ({ body }) => {
+      const { articles } = body;
+      const { analyzeArticles } = await import("./gemini");
+      return await analyzeArticles(articles, phrases.phrases);
+    },
+    {
+      body: t.Object({
+        articles: t.Array(
+             t.Object({
+                title: t.String(),
+                authors: t.Array(t.String()),
+                abstract: t.String(),
+                url: t.String(),
+                source: t.Union([t.Literal("ArXiv"), t.Literal("PubMed")]),
+                published_date: t.String()
+             })
+        ) 
+      })
     }
   );
 

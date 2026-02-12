@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './App.css';
 import { api } from './api';
+import ReactMarkdown from 'react-markdown';
 
 function App() {
   const [query, setQuery] = useState('');
@@ -10,10 +11,23 @@ function App() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [includeAbstracts, setIncludeAbstracts] = useState(false);
+  const [includeFullPapers, setIncludeFullPapers] = useState(false);
   
   const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  useEffect(() => {
+    if (error) {
+        const timer = setTimeout(() => {
+            setError(null);
+        }, 5000);
+        return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -21,6 +35,7 @@ function App() {
     setLoading(true);
     setError(null);
     setArticles([]);
+    setSummary(null);
 
     try {
       const { data, error } = await api.search.get({
@@ -31,7 +46,8 @@ function App() {
             includePubmed: includePubmed.toString(),
             startDate: startDate || undefined,
             endDate: endDate || undefined,
-            includeAbstracts: includeAbstracts.toString()
+            includeAbstracts: includeAbstracts.toString(),
+            includeFullPapers: includeFullPapers.toString()
         }
       });
 
@@ -45,6 +61,28 @@ function App() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (articles.length === 0) return;
+
+    setSummaryLoading(true);
+    try {
+        const { data, error } = await api.analyze.post({
+            articles
+        });
+        
+        if (error) {
+             setError(error.value ? String(error.value) : 'Failed to analyze');
+        } else {
+             setSummary(data);
+        }
+    } catch (err) {
+        setError('Failed to trigger analysis');
+        console.error(err);
+    } finally {
+        setSummaryLoading(false);
     }
   };
 
@@ -101,6 +139,14 @@ function App() {
                         disabled={!includePubmed}
                     /> Fetch Abstracts
                 </label>
+                <label className="checkbox-label" title="Fetching full papers via HTML (slower)">
+                    <input 
+                        type="checkbox" 
+                        checked={includeFullPapers} 
+                        onChange={(e) => setIncludeFullPapers(e.target.checked)} 
+                        disabled={!includeArxiv}
+                    /> Include Full Papers (ArXiv)
+                </label>
             </div>
 
             <div className="filter-group">
@@ -120,9 +166,38 @@ function App() {
                 />
             </div>
         </div>
+        
+        {articles.length > 0 && (
+            <div className="actions">
+                <button 
+                    className="analyze-btn" 
+                    onClick={handleAnalyze} 
+                    disabled={summaryLoading}
+                    style={{ marginTop: '1rem', backgroundColor: '#646cff', color: 'white' }}
+                >
+                    {summaryLoading ? 'Analyzing with Gemini...' : 'Summarize Findings with Gemini'}
+                </button>
+            </div>
+        )}
       </div>
 
       {error && <div className="error">{error}</div>}
+
+      {summaryLoading && (
+        <div className="summary-section loading-state">
+            <div className="spinner"></div>
+            <p>Analyzing search results with Gemini...</p>
+        </div>
+      )}
+
+      {summary && !summaryLoading && (
+        <div className="summary-section">
+            <h2>Gemini Analysis</h2>
+            <div className="markdown-content">
+                <ReactMarkdown>{summary}</ReactMarkdown>
+            </div>
+        </div>
+      )}
 
       <div className="results">
         {articles.map((article, index) => (

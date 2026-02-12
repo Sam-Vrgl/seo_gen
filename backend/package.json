@@ -11,7 +11,11 @@
   },
   "dependencies": {
     "@elysiajs/cors": "^1.4.1",
+    "@google/generative-ai": "^0.24.1",
+    "@types/cheerio": "^1.0.0",
+    "cheerio": "^1.2.0",
     "elysia": "^1.4.23",
-    "fast-xml-parser": "^5.3.5"
+    "fast-xml-parser": "^5.3.5",
+    "pdf-parse": "^2.4.5"
   }
 }
