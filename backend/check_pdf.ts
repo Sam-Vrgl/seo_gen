@@ -8,5 +8,5 @@ try {
     console.log('Default:', pdf.default);
     console.log('Is function:', typeof pdf === 'function');
 } catch(e) {
-    console.log('Require failed:', e.message);
+    console.log('Require failed:', (e as Error).message);
 }
