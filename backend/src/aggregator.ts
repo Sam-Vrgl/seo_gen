@@ -154,15 +154,63 @@ interface PubMedSummaryResponse {
   };
 }
 
-export const fetchPubmedPapers = async (query: string, limit: number = 5, startDate?: string, endDate?: string, fetchAbstracts: boolean = false): Promise<Article[]> => {
+export const fetchPmcFullText = async (pmcId: string): Promise<string | undefined> => {
+    try {
+        // PMC IDs from esearch are usually numbers, but BioC API expects 'PMC' prefix for PMC IDs
+        // or just the number if it's a PMID. Since we search db=pmc, we likely get PMC UIDs (numbers).
+        // Best practice for BioC with PMC IDs is often 'PMC' + id.
+        const cleanId = pmcId.startsWith('PMC') ? pmcId : `PMC${pmcId}`;
+        const url = `https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json/${cleanId}/unicode`;
+        
+        console.log(`Fetching PMC full text for ${cleanId} at ${url}`);
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            console.warn(`Failed to fetch BioC JSON for ${cleanId}: ${response.status} ${response.statusText}`);
+            const text = await response.text();
+            console.warn(`Response body: ${text.substring(0, 200)}`);
+            return undefined;
+        }
+
+        const data = (await response.json()) as any;
+        // BioC JSON structure is an array of collections:
+        // [ { "documents": [ ... ] } ]
+        
+        const collection = Array.isArray(data) ? data[0] : data;
+        
+        if (!collection || !collection.documents || collection.documents.length === 0) {
+            // console.warn(`No documents found in BioC response for ${cleanId}`);
+            return undefined; 
+        }
+
+        let fullText = "";
+        for (const doc of collection.documents) {
+            if (doc.passages) {
+                for (const passage of doc.passages) {
+                    if (passage.text) {
+                        // Optional: skip some section types if needed, but for now take all text
+                        fullText += passage.text + "\n\n";
+                    }
+                }
+            }
+        }
+        
+        return fullText.trim();
+    } catch (error) {
+        console.error(`Error fetching PMC full text for ${pmcId}:`, error);
+        return undefined;
+    }
+}
+
+export const fetchPmcPapers = async (query: string, limit: number = 5, startDate?: string, endDate?: string, fetchFullText: boolean = false): Promise<Article[]> => {
   try {
     let dateParams = "";
     if (startDate) dateParams += `&mindate=${startDate.replace(/-/g, "/")}`;
     if (endDate) dateParams += `&maxdate=${endDate.replace(/-/g, "/")}`;
 
-    // Step 1: Search for IDs
+    // Step 1: Search for IDs in PMC
     const searchResponse = await fetch(
-      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&term=${encodeURIComponent(
+      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&term=${encodeURIComponent(
         query
       )}&retmode=json&retmax=${limit}${dateParams}`
     );
@@ -171,9 +219,9 @@ export const fetchPubmedPapers = async (query: string, limit: number = 5, startD
 
     if (!ids || ids.length === 0) return [];
 
-    // Step 2: Fetch summary details for IDs
+    // Step 2: Fetch summary details for IDs from PMC
     const summaryResponse = await fetch(
-      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pubmed&id=${ids.join(
+      `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pmc&id=${ids.join(
         ","
       )}&retmode=json`
     );
@@ -183,61 +231,30 @@ export const fetchPubmedPapers = async (query: string, limit: number = 5, startD
     // Remove the 'uids' list from the result object to iterate over papers
     const papers = ids.map((id: string) => result[id]);
 
-    let abstracts: Record<string, string> = {};
-    if (fetchAbstracts) {
-        try {
-            const efetchResponse = await fetch(
-                `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&id=${ids.join(",")}&retmode=xml`
-            );
-            const xml = await efetchResponse.text();
-            const parsed = parser.parse(xml);
-            
-            const articles = parsed.PubmedArticleSet?.PubmedArticle;
-            if (articles) {
-                const articleList = Array.isArray(articles) ? articles : [articles];
-                articleList.forEach((a: any) => {
-                    const pmid = a.MedlineCitation?.PMID;
-                    // Handle PMID as object or string (parser might wrap it)
-                    const pmidStr = typeof pmid === 'object' && pmid['#text'] ? pmid['#text'] : pmid;
-                    
-                    const abstractText = a.MedlineCitation?.Article?.Abstract?.AbstractText;
-                    
-                    if (pmidStr && abstractText) {
-                        let text = "";
-                        if (Array.isArray(abstractText)) {
-                            text = abstractText.map((t: any) => {
-                                if (typeof t === 'string') return t;
-                                if (typeof t === 'object') {
-                                    const label = t['@_Label'] ? `${t['@_Label']}: ` : '';
-                                    return label + (t['#text'] || '');
-                                }
-                                return '';
-                            }).join(" ");
-                        } else if (typeof abstractText === 'object') {
-                            const label = abstractText['@_Label'] ? `${abstractText['@_Label']}: ` : '';
-                            text = label + (abstractText['#text'] || '');
-                        } else {
-                            text = String(abstractText);
-                        }
-                        abstracts[String(pmidStr)] = text;
-                    }
-                });
-            }
-        } catch (e) {
-            console.error("Failed to fetch abstracts", e);
+    // Step 3: Fetch full text if requested
+    const papersWithText = await Promise.all(papers.map(async (paper: any) => {
+        let fullText: string | undefined = undefined;
+        if (fetchFullText) {
+            fullText = await fetchPmcFullText(paper.uid);
         }
-    }
 
-    return papers.map((paper: any) => ({
-      title: paper.title,
-      authors: paper.authors ? paper.authors.map((a: any) => a.name) : [],
-      abstract: abstracts[paper.uid] || "Abstract not available in summary - requires fetch via efetch",
-      url: `https://pubmed.ncbi.nlm.nih.gov/${paper.uid}/`,
-      source: "PubMed",
-      published_date: paper.pubdate,
+        return {
+          title: paper.title,
+          authors: paper.authors ? paper.authors.map((a: any) => a.name) : [],
+          // PMC summary often doesn't have an abstract field directly comparable to PubMed's.
+          // Using fullText if available as a fallback for abstract or just a placeholder.
+          abstract: "Abstract available in full text or via BioC", 
+          url: `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${paper.uid}/`,
+          source: "PubMed", // Using generic PubMed label as requested, or strictly "PMC"
+          published_date: paper.pubdate,
+          fullText: fullText
+        } as Article;
+
     }));
+
+    return papersWithText;
   } catch (error) {
-    console.error("Error fetching from PubMed:", error);
+    console.error("Error fetching from PMC:", error);
     return [];
   }
 };
@@ -256,10 +273,10 @@ export const searchAggregator = async (query: string, options: SearchOptions = {
     const { 
         limit = 5, 
         includeArxiv = true, 
-        includePubmed = true,
+        includePubmed = true, // Maps to PMC now
         startDate,
         endDate,
-        includeAbstracts = false,
+        includeAbstracts = false, // Deprecated in favor of includeFullPapers but kept for compat
         includeFullPapers = false
     } = options;
 
@@ -270,9 +287,12 @@ export const searchAggregator = async (query: string, options: SearchOptions = {
     }
     
     if (includePubmed) {
-        promises.push(fetchPubmedPapers(query, limit, startDate, endDate, includeAbstracts));
+        // We use includeFullPapers OR includeAbstracts to trigger full text fetch in PMC context
+        // because PMC abstract is often just part of the full text.
+        // Actually, let's just stick to includeFullPapers deciding the heavy fetch.
+        promises.push(fetchPmcPapers(query, limit, startDate, endDate, includeFullPapers));
     }
 
     const results = await Promise.all(promises);
-    return results.flat();
+    return results.flat().slice(0, limit);
 }

@@ -10,7 +10,6 @@ function App() {
   const [includePubmed, setIncludePubmed] = useState(true);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [includeAbstracts, setIncludeAbstracts] = useState(false);
   const [includeFullPapers, setIncludeFullPapers] = useState(false);
   
   const [articles, setArticles] = useState<any[]>([]);
@@ -46,7 +45,7 @@ function App() {
             includePubmed: includePubmed.toString(),
             startDate: startDate || undefined,
             endDate: endDate || undefined,
-            includeAbstracts: includeAbstracts.toString(),
+            endDate: endDate || undefined,
             includeFullPapers: includeFullPapers.toString()
         }
       });
@@ -129,23 +128,15 @@ function App() {
                         type="checkbox" 
                         checked={includePubmed} 
                         onChange={(e) => setIncludePubmed(e.target.checked)} 
-                    /> PubMed
+                    /> PubMed Central (PMC)
                 </label>
-                <label className="checkbox-label" title="Fetching abstracts is slower">
-                    <input 
-                        type="checkbox" 
-                        checked={includeAbstracts} 
-                        onChange={(e) => setIncludeAbstracts(e.target.checked)} 
-                        disabled={!includePubmed}
-                    /> Fetch Abstracts
-                </label>
-                <label className="checkbox-label" title="Fetching full papers via HTML (slower)">
+                <label className="checkbox-label" title="Fetching full text (slower)">
                     <input 
                         type="checkbox" 
                         checked={includeFullPapers} 
                         onChange={(e) => setIncludeFullPapers(e.target.checked)} 
-                        disabled={!includeArxiv}
-                    /> Include Full Papers (ArXiv)
+                        disabled={!includeArxiv && !includePubmed}
+                    /> Include Full Text
                 </label>
             </div>
 
@@ -212,7 +203,14 @@ function App() {
                 {article.source}
             </p>
             <span className="date">{new Date(article.published_date).toLocaleDateString()}</span>
-            <p className="abstract">{article.abstract}</p>
+            {article.fullText ? (
+                <div className="full-text-snippet">
+                    <span className="badge">Full Text Available</span>
+                    <p className="abstract">{article.fullText.substring(0, 300)}...</p>
+                </div>
+            ) : (
+                <p className="abstract">{article.abstract}</p>
+            )}
           </div>
         ))}
         {articles.length === 0 && !loading && !error && query && (
