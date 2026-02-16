@@ -294,5 +294,5 @@ export const searchAggregator = async (query: string, options: SearchOptions = {
     }
 
     const results = await Promise.all(promises);
-    return results.flat().slice(0, limit);
+    return results.flat();
 }
