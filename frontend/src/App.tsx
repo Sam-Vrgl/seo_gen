@@ -13,6 +13,7 @@ function App() {
   const [includeFullPapers, setIncludeFullPapers] = useState(false);
   
   const [articles, setArticles] = useState<any[]>([]);
+  const [selectedArticles, setSelectedArticles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +35,7 @@ function App() {
     setLoading(true);
     setError(null);
     setArticles([]);
+    setSelectedArticles(new Set());
     setSummary(null);
 
     try {
@@ -45,7 +47,7 @@ function App() {
             includePubmed: includePubmed.toString(),
             startDate: startDate || undefined,
             endDate: endDate || undefined,
-            endDate: endDate || undefined,
+            includeAbstracts: 'false', // Deprecated but kept for compat
             includeFullPapers: includeFullPapers.toString()
         }
       });
@@ -54,6 +56,8 @@ function App() {
         setError(error.value ? String(error.value) : 'Unknown error');
       } else if (data) {
         setArticles(data);
+        // Select all articles by default
+        setSelectedArticles(new Set(data.map(a => a.url)));
       }
     } catch (err) {
       setError('Failed to fetch data');
@@ -63,13 +67,38 @@ function App() {
     }
   };
 
+  const toggleSelection = (url: string) => {
+    const newSelection = new Set(selectedArticles);
+    if (newSelection.has(url)) {
+        newSelection.delete(url);
+    } else {
+        newSelection.add(url);
+    }
+    setSelectedArticles(newSelection);
+  };
+
+  const toggleAll = (selectAll: boolean) => {
+    if (selectAll) {
+        setSelectedArticles(new Set(articles.map(a => a.url)));
+    } else {
+        setSelectedArticles(new Set());
+    }
+  };
+
   const handleAnalyze = async () => {
     if (articles.length === 0) return;
+
+    const articlesToAnalyze = articles.filter(a => selectedArticles.has(a.url));
+
+    if (articlesToAnalyze.length === 0) {
+        setError('Please select at least one article to analyze.');
+        return;
+    }
 
     setSummaryLoading(true);
     try {
         const { data, error } = await api.analyze.post({
-            articles
+            articles: articlesToAnalyze
         });
         
         if (error) {
@@ -160,13 +189,18 @@ function App() {
         
         {articles.length > 0 && (
             <div className="actions">
+                <div className="selection-controls">
+                    <button className="secondary-btn" onClick={() => toggleAll(true)}>Select All</button>
+                    <button className="secondary-btn" onClick={() => toggleAll(false)}>Deselect All</button>
+                    <span className="selection-count">{selectedArticles.size} selected</span>
+                </div>
                 <button 
                     className="analyze-btn" 
                     onClick={handleAnalyze} 
-                    disabled={summaryLoading}
+                    disabled={summaryLoading || selectedArticles.size === 0}
                     style={{ marginTop: '1rem', backgroundColor: '#646cff', color: 'white' }}
                 >
-                    {summaryLoading ? 'Analyzing with Gemini...' : 'Summarize Findings with Gemini'}
+                    {summaryLoading ? 'Analyzing with Gemini...' : 'Summarize Selected with Gemini'}
                 </button>
             </div>
         )}
@@ -192,12 +226,20 @@ function App() {
 
       <div className="results">
         {articles.map((article, index) => (
-          <div key={index} className="article-card">
-            <h3>
-              <a href={article.url} target="_blank" rel="noopener noreferrer">
-                {article.title}
-              </a>
-            </h3>
+          <div key={index} className={`article-card ${selectedArticles.has(article.url) ? 'selected' : ''}`}>
+            <div className="article-header">
+                <input 
+                    type="checkbox" 
+                    className="article-checkbox"
+                    checked={selectedArticles.has(article.url)}
+                    onChange={() => toggleSelection(article.url)}
+                />
+                <h3>
+                <a href={article.url} target="_blank" rel="noopener noreferrer">
+                    {article.title}
+                </a>
+                </h3>
+            </div>
             <p className="authors">{article.authors.join(', ')}</p>
             <p className="source-badge">
                 {article.source}

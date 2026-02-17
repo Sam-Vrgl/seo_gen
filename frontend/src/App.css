@@ -325,3 +325,76 @@ button:disabled {
       border-top-color: #747bff;
   }
 }
+
+/* Selection Controls */
+.selection-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+  width: 100%;
+}
+
+.selection-count {
+  font-size: 0.9rem;
+  color: #666;
+  margin-left: auto;
+}
+
+.secondary-btn {
+  padding: 0.5rem 1rem;
+  background-color: #f0f0f0;
+  color: #333;
+  font-size: 0.9rem;
+  border: 1px solid #ccc;
+}
+
+.secondary-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.article-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.article-checkbox {
+  margin-top: 0.3rem;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.article-card.selected {
+  border-color: #646cff;
+  background-color: #f8f9ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .selection-controls {
+    border-top-color: #333;
+  }
+  
+  .secondary-btn {
+    background-color: #333;
+    color: #eee;
+    border-color: #444;
+  }
+  
+  .secondary-btn:hover {
+    background-color: #444;
+  }
+  
+  .article-card.selected {
+    background-color: #2a2a35;
+    border-color: #747bff;
+  }
+
+  .selection-count {
+      color: #aaa;
+  }
+}

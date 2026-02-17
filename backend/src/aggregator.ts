@@ -179,7 +179,7 @@ export const fetchPmcFullText = async (pmcId: string): Promise<string | undefine
         const collection = Array.isArray(data) ? data[0] : data;
         
         if (!collection || !collection.documents || collection.documents.length === 0) {
-            // console.warn(`No documents found in BioC response for ${cleanId}`);
+            console.warn(`No documents found in BioC response for ${cleanId}`);
             return undefined; 
         }
 
@@ -188,7 +188,6 @@ export const fetchPmcFullText = async (pmcId: string): Promise<string | undefine
             if (doc.passages) {
                 for (const passage of doc.passages) {
                     if (passage.text) {
-                        // Optional: skip some section types if needed, but for now take all text
                         fullText += passage.text + "\n\n";
                     }
                 }
@@ -287,9 +286,6 @@ export const searchAggregator = async (query: string, options: SearchOptions = {
     }
     
     if (includePubmed) {
-        // We use includeFullPapers OR includeAbstracts to trigger full text fetch in PMC context
-        // because PMC abstract is often just part of the full text.
-        // Actually, let's just stick to includeFullPapers deciding the heavy fetch.
         promises.push(fetchPmcPapers(query, limit, startDate, endDate, includeFullPapers));
     }
 
