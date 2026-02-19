@@ -11,7 +11,7 @@ export interface Article {
   authors: string[];
   abstract: string;
   url: string;
-  source: "ArXiv" | "PubMed";
+  source: "ArXiv" | "PubMed" | "User Upload";
   published_date: string;
   fullText?: string;
 }

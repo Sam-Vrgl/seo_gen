@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { api } from './api';
 import ReactMarkdown from 'react-markdown';
@@ -10,15 +10,18 @@ function App() {
   const [includePubmed, setIncludePubmed] = useState(true);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [includeFullPapers, setIncludeFullPapers] = useState(false);
+  const [includeFullPapers, setIncludeFullPapers] = useState(true);
   
   const [articles, setArticles] = useState<any[]>([]);
   const [selectedArticles, setSelectedArticles] = useState<Set<string>>(new Set());
+  const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (error) {
@@ -85,6 +88,16 @@ function App() {
     }
   };
 
+  const toggleFullText = (url: string) => {
+    const newExpanded = new Set(expandedArticles);
+    if (newExpanded.has(url)) {
+        newExpanded.delete(url);
+    } else {
+        newExpanded.add(url);
+    }
+    setExpandedArticles(newExpanded);
+  };
+
   const handleAnalyze = async () => {
     if (articles.length === 0) return;
 
@@ -111,6 +124,40 @@ function App() {
         console.error(err);
     } finally {
         setSummaryLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf') {
+        setError('Please upload a PDF file.');
+        return;
+    }
+
+    setUploading(true);
+    setError(null);
+
+    try {
+        const { data, error } = await api['upload-pdf'].post({
+            file: file
+        });
+
+        if (error) {
+            setError(error.value ? String(error.value) : 'Failed to upload PDF');
+        } else if (data) {
+            setArticles(prev => [data, ...prev]);
+            setSelectedArticles(prev => new Set(prev).add(data.url));
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    } catch (err) {
+        console.error("Upload error:", err);
+        setError('Failed to upload file');
+    } finally {
+        setUploading(false);
     }
   };
 
@@ -163,7 +210,7 @@ function App() {
                     <input 
                         type="checkbox" 
                         checked={includeFullPapers} 
-                        onChange={(e) => setIncludeFullPapers(e.target.checked)} 
+                        onChange={(e) => setIncludeFullPapers(e.target.checked)}
                         disabled={!includeArxiv && !includePubmed}
                     /> Include Full Text
                 </label>
@@ -186,6 +233,22 @@ function App() {
                 />
             </div>
         </div>
+
+        <div className="upload-container" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'center' }}>
+            <div className="upload-section">
+                <input 
+                    type="file" 
+                    accept=".pdf" 
+                    onChange={handleFileUpload} 
+                    style={{ display: 'none' }} 
+                    ref={fileInputRef}
+                    id="pdf-upload"
+                />
+                <label htmlFor="pdf-upload" className="secondary-btn upload-btn">
+                    {uploading ? 'Uploading...' : 'Upload PDF'}
+                </label>
+            </div>
+        </div>
         
         {articles.length > 0 && (
             <div className="actions">
@@ -194,6 +257,9 @@ function App() {
                     <button className="secondary-btn" onClick={() => toggleAll(false)}>Deselect All</button>
                     <span className="selection-count">{selectedArticles.size} selected</span>
                 </div>
+                
+
+
                 <button 
                     className="analyze-btn" 
                     onClick={handleAnalyze} 
@@ -246,9 +312,23 @@ function App() {
             </p>
             <span className="date">{new Date(article.published_date).toLocaleDateString()}</span>
             {article.fullText ? (
-                <div className="full-text-snippet">
-                    <span className="badge">Full Text Available</span>
-                    <p className="abstract">{article.fullText.substring(0, 300)}...</p>
+                <div className="full-text-container">
+                    <div className="full-text-header">
+                        <span className="badge">Full Text Available</span>
+                        <button 
+                            className="secondary-btn toggle-text-btn"
+                            onClick={() => toggleFullText(article.url)}
+                        >
+                            {expandedArticles.has(article.url) ? 'Hide Full Text' : 'Show Full Text'}
+                        </button>
+                    </div>
+                    {expandedArticles.has(article.url) ? (
+                        <div className="full-text-content">
+                            {article.fullText}
+                        </div>
+                    ) : (
+                        <p className="abstract">{article.fullText.substring(0, 300)}...</p>
+                    )}
                 </div>
             ) : (
                 <p className="abstract">{article.abstract}</p>

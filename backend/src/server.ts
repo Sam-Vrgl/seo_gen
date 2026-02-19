@@ -51,10 +51,51 @@ const app = new Elysia()
                 authors: t.Array(t.String()),
                 abstract: t.String(),
                 url: t.String(),
-                source: t.Union([t.Literal("ArXiv"), t.Literal("PubMed")]),
+                source: t.Union([t.Literal("ArXiv"), t.Literal("PubMed"), t.Literal("User Upload")]),
                 published_date: t.String()
              })
         ) 
+      })
+    }
+  )
+  .post(
+    "/upload-pdf",
+    async ({ body }) => {
+      const { file } = body;
+      
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        // We'll use local require for pdf-parse as done elsewhere to avoid type issues if types are missing
+        const { createRequire } = await import('module');
+        const require = createRequire(import.meta.url);
+        const pdfLib = require('pdf-parse');
+        const PDFParse = pdfLib.PDFParse || pdfLib.default?.PDFParse || pdfLib;
+        
+        // pdf-parse usage based on aggregator.ts pattern
+        const parser = new PDFParse({ data: buffer });
+        const data = await parser.getText();
+        
+        const text = data.text.replace(/\s+/g, ' ').trim();
+        
+        return {
+            title: file.name,
+            authors: ["User Upload"],
+            abstract: text.substring(0, 300) + "...",
+            url: `local-file://${file.name}`,
+            source: "User Upload",
+            published_date: new Date().toISOString(),
+            fullText: text
+        };
+      } catch (error) {
+        console.error("Error parsing PDF:", error);
+        throw new Error("Failed to parse PDF");
+      }
+    },
+    {
+      body: t.Object({
+        file: t.File()
       })
     }
   );
