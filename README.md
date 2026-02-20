@@ -17,6 +17,12 @@ This project requires **Bun**, a fast JavaScript runtime. If you don't already h
 3. Wait for the installation to finish.
 4. **Close** the PowerShell window so the changes take effect.
 
+5. Create a .env file in the backend folder with the following content:
+   ```
+   GEMINI_API_KEY = your_api_key
+   ```
+   Which you can obtain from the [Google AI Studio](https://aistudio.google.com/app/api-keys).
+
 ### 2. Launch the Application
 
 Once you have downloaded the code onto your computer, you can start all services with a single command!
