@@ -6,7 +6,8 @@
   ],
   "scripts": {
     "start": "cd backend && bun run index.ts",
-    "dev": "cd frontend && bun run dev"
+    "dev": "cd frontend && bun run dev",
+    "start:all": "start.bat"
   },
   "private": true
 }

@@ -1,4 +1,4 @@
-import { fetchArxivPapers, fetchPubmedPapers } from "./aggregator";
+import { fetchArxivPapers, fetchPmcPapers } from "./aggregator";
 
 async function test() {
   console.log("Testing ArXiv fetch...");
@@ -6,7 +6,7 @@ async function test() {
   console.log("ArXiv Papers:", arxivPapers);
 
   console.log("\nTesting PubMed fetch...");
-  const pubmedPapers = await fetchPubmedPapers("asthma");
+  const pubmedPapers = await fetchPmcPapers("asthma");
   console.log("PubMed Papers:", JSON.stringify(pubmedPapers, null, 2));
 }
 
