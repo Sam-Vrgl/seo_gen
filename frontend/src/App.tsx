@@ -50,7 +50,6 @@ function App() {
             includePubmed: includePubmed.toString(),
             startDate: startDate || undefined,
             endDate: endDate || undefined,
-            includeAbstracts: 'false', // Deprecated but kept for compat
             includeFullPapers: includeFullPapers.toString()
         }
       });
@@ -59,8 +58,7 @@ function App() {
         setError(error.value ? String(error.value) : 'Unknown error');
       } else if (data) {
         setArticles(data);
-        // Select all articles by default
-        setSelectedArticles(new Set(data.map(a => a.url)));
+        setSelectedArticles(new Set(data.map((a: any) => a.url)));
       }
     } catch (err) {
       setError('Failed to fetch data');

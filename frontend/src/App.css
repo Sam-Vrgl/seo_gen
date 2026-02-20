@@ -326,7 +326,6 @@ button:disabled {
   }
 }
 
-/* Selection Controls */
 .selection-controls {
   display: flex;
   align-items: center;

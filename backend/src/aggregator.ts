@@ -30,7 +30,6 @@ const fetchArxivHtml = async (idUrl: string): Promise<string | undefined> => {
         const arxivId = idUrl.split('/abs/').pop();
         if (!arxivId) return undefined;
 
-        // Try to fetch HTML view
         const htmlUrl = `https://arxiv.org/html/${arxivId}`;
         console.log(`Fetching HTML fetching for ${arxivId} at ${htmlUrl}`);
         const response = await fetch(htmlUrl);
@@ -43,16 +42,12 @@ const fetchArxivHtml = async (idUrl: string): Promise<string | undefined> => {
         const html = await response.text();
         const $ = load(html);
         
-        // ArXiv HTML usually has content in specific classes
-        // .ltx_page_main is a common container for the converted LaTeX
         let content = $('.ltx_page_main').text();
         
         if (!content || content.length < 500) {
-             // Fallback to body if specific class not found or too short
              content = $('body').text();
         }
 
-        // Clean up: remove excessive whitespace
         return content.replace(/\s+/g, ' ').trim();
     } catch (error) {
         console.error("Error fetching ArXiv HTML:", error);
@@ -78,7 +73,6 @@ const fetchArxivPdf = async (idUrl: string): Promise<string | undefined> => {
         const parser = new PDFParse({ data: Buffer.from(buffer) });
         const data = await parser.getText();
         
-        // Basic cleanup
         return data.text.replace(/\s+/g, ' ').trim();
     } catch (error) {
         console.error("Error fetching ArXiv PDF:", error);
@@ -111,10 +105,8 @@ export const fetchArxivPapers = async (query: string, limit: number = 5, startDa
     const papers = await Promise.all(entriesArray.map(async (entry: any) => {
       let fullText: string | undefined = undefined;
       if (includeFullPapers) {
-          // Try HTML first
           fullText = await fetchArxivHtml(entry.id);
           
-          // Fallback to PDF if HTML failed
           if (!fullText) {
               console.log(`HTML fetch failed for ${entry.id}, trying PDF fallback...`);
               fullText = await fetchArxivPdf(entry.id);
@@ -156,9 +148,6 @@ interface PubMedSummaryResponse {
 
 export const fetchPmcFullText = async (pmcId: string): Promise<string | undefined> => {
     try {
-        // PMC IDs from esearch are usually numbers, but BioC API expects 'PMC' prefix for PMC IDs
-        // or just the number if it's a PMID. Since we search db=pmc, we likely get PMC UIDs (numbers).
-        // Best practice for BioC with PMC IDs is often 'PMC' + id.
         const cleanId = pmcId.startsWith('PMC') ? pmcId : `PMC${pmcId}`;
         const url = `https://www.ncbi.nlm.nih.gov/research/bionlp/RESTful/pmcoa.cgi/BioC_json/${cleanId}/unicode`;
         
@@ -173,9 +162,6 @@ export const fetchPmcFullText = async (pmcId: string): Promise<string | undefine
         }
 
         const data = (await response.json()) as any;
-        // BioC JSON structure is an array of collections:
-        // [ { "documents": [ ... ] } ]
-        
         const collection = Array.isArray(data) ? data[0] : data;
         
         if (!collection || !collection.documents || collection.documents.length === 0) {
@@ -207,7 +193,6 @@ export const fetchPmcPapers = async (query: string, limit: number = 5, startDate
     if (startDate) dateParams += `&mindate=${startDate.replace(/-/g, "/")}`;
     if (endDate) dateParams += `&maxdate=${endDate.replace(/-/g, "/")}`;
 
-    // Step 1: Search for IDs in PMC
     const searchResponse = await fetch(
       `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&term=${encodeURIComponent(
         query
@@ -218,7 +203,6 @@ export const fetchPmcPapers = async (query: string, limit: number = 5, startDate
 
     if (!ids || ids.length === 0) return [];
 
-    // Step 2: Fetch summary details for IDs from PMC
     const summaryResponse = await fetch(
       `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi?db=pmc&id=${ids.join(
         ","
@@ -227,10 +211,8 @@ export const fetchPmcPapers = async (query: string, limit: number = 5, startDate
     const summaryData = (await summaryResponse.json()) as PubMedSummaryResponse;
     const result = summaryData.result;
 
-    // Remove the 'uids' list from the result object to iterate over papers
     const papers = ids.map((id: string) => result[id]);
 
-    // Step 3: Fetch full text if requested
     const papersWithText = await Promise.all(papers.map(async (paper: any) => {
         let fullText: string | undefined = undefined;
         if (fetchFullText) {
@@ -240,11 +222,9 @@ export const fetchPmcPapers = async (query: string, limit: number = 5, startDate
         return {
           title: paper.title,
           authors: paper.authors ? paper.authors.map((a: any) => a.name) : [],
-          // PMC summary often doesn't have an abstract field directly comparable to PubMed's.
-          // Using fullText if available as a fallback for abstract or just a placeholder.
           abstract: "Abstract available in full text or via BioC", 
           url: `https://www.ncbi.nlm.nih.gov/pmc/articles/PMC${paper.uid}/`,
-          source: "PubMed", // Using generic PubMed label as requested, or strictly "PMC"
+          source: "PubMed",
           published_date: paper.pubdate,
           fullText: fullText
         } as Article;
@@ -264,7 +244,6 @@ export interface SearchOptions {
     includePubmed?: boolean;
     startDate?: string; // YYYY-MM-DD
     endDate?: string;   // YYYY-MM-DD
-    includeAbstracts?: boolean;
     includeFullPapers?: boolean;
 }
 
@@ -272,10 +251,9 @@ export const searchAggregator = async (query: string, options: SearchOptions = {
     const { 
         limit = 5, 
         includeArxiv = true, 
-        includePubmed = true, // Maps to PMC now
+        includePubmed = true,
         startDate,
         endDate,
-        includeAbstracts = false, // Deprecated in favor of includeFullPapers but kept for compat
         includeFullPapers = false
     } = options;
 

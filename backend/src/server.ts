@@ -9,7 +9,7 @@ const app = new Elysia()
   .get(
     "/search",
     async ({ query }) => {
-      const { q, limit, includeArxiv, includePubmed, startDate, endDate, includeAbstracts } = query;
+      const { q, limit, includeArxiv, includePubmed, startDate, endDate } = query;
       if (!q) {
         return [];
       }
@@ -19,7 +19,6 @@ const app = new Elysia()
         includePubmed: includePubmed === undefined ? undefined : includePubmed === 'true',
         startDate,
         endDate,
-        includeAbstracts: includeAbstracts === 'true',
         includeFullPapers: query.includeFullPapers === 'true'
       });
     },
@@ -31,7 +30,6 @@ const app = new Elysia()
         includePubmed: t.Optional(t.String()),
         startDate: t.Optional(t.String()),
         endDate: t.Optional(t.String()),
-        includeAbstracts: t.Optional(t.String()),
         includeFullPapers: t.Optional(t.String())
       }),
     }
@@ -67,13 +65,11 @@ const app = new Elysia()
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         
-        // We'll use local require for pdf-parse as done elsewhere to avoid type issues if types are missing
         const { createRequire } = await import('module');
         const require = createRequire(import.meta.url);
         const pdfLib = require('pdf-parse');
         const PDFParse = pdfLib.PDFParse || pdfLib.default?.PDFParse || pdfLib;
         
-        // pdf-parse usage based on aggregator.ts pattern
         const parser = new PDFParse({ data: buffer });
         const data = await parser.getText();
         
