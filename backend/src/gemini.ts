@@ -58,6 +58,20 @@ This check must be case-insensitive and match whole words or phrases, including 
   try {
     const result = await model.generateContent(prompt);
     const response = await result.response;
+    
+    if (process.env.LIST_TOKEN_USE === 'true') {
+      const tokenUsage = response.usageMetadata;
+      if (tokenUsage) {
+        console.log("=== Gemini Token Usage ===");
+        console.log(`Prompt Tokens: ${tokenUsage.promptTokenCount}`);
+        console.log(`Candidate Tokens: ${tokenUsage.candidatesTokenCount}`);
+        console.log(`Total Tokens: ${tokenUsage.totalTokenCount}`);
+        console.log('============================');
+        console.log(tokenUsage);
+        console.log('============================');
+      }
+    }
+
     return response.text();
   } catch (error) {
     console.error("Error analyzing articles with Gemini:", error);
