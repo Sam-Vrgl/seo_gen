@@ -20,6 +20,8 @@ function App() {
 
   const [summary, setSummary] = useState<string | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [faq, setFaq] = useState<string | null>(null);
+  const [faqLoading, setFaqLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -40,6 +42,7 @@ function App() {
     setArticles([]);
     setSelectedArticles(new Set());
     setSummary(null);
+    setFaq(null);
 
     try {
       const { data, error } = await api.search.get({
@@ -107,6 +110,7 @@ function App() {
     }
 
     setSummaryLoading(true);
+    setFaq(null);
     try {
         const { data, error } = await api.analyze.post({
             articles: articlesToAnalyze
@@ -122,6 +126,28 @@ function App() {
         console.error(err);
     } finally {
         setSummaryLoading(false);
+    }
+  };
+
+  const handleGenerateFaq = async () => {
+    if (!summary) return;
+
+    setFaqLoading(true);
+    try {
+        const { data, error } = await api['generate-faq'].post({
+            article: summary
+        });
+        
+        if (error) {
+             setError(error.value ? String(error.value) : 'Failed to generate FAQ');
+        } else {
+             setFaq(data);
+        }
+    } catch (err) {
+        setError('Failed to trigger FAQ generation');
+        console.error(err);
+    } finally {
+        setFaqLoading(false);
     }
   };
 
@@ -284,6 +310,33 @@ function App() {
             <h2>Gemini Analysis</h2>
             <div className="markdown-content">
                 <ReactMarkdown>{summary}</ReactMarkdown>
+            </div>
+            
+            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center' }}>
+                <button 
+                    className="analyze-btn" 
+                    onClick={handleGenerateFaq} 
+                    disabled={faqLoading}
+                    style={{ backgroundColor: '#10b981', color: 'white' }}
+                >
+                    {faqLoading ? 'Generating FAQs...' : 'Generate FAQs'}
+                </button>
+            </div>
+        </div>
+      )}
+
+      {faqLoading && (
+        <div className="summary-section loading-state" style={{ marginTop: '1rem' }}>
+            <div className="spinner"></div>
+            <p>Generating FAQs with Gemini...</p>
+        </div>
+      )}
+
+      {faq && !faqLoading && (
+        <div className="summary-section" style={{ marginTop: '1rem', borderTop: '2px solid #eee' }}>
+            <h2>Frequently Asked Questions</h2>
+            <div className="markdown-content">
+                <ReactMarkdown>{faq}</ReactMarkdown>
             </div>
         </div>
       )}

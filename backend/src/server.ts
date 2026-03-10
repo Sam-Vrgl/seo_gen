@@ -57,6 +57,19 @@ const app = new Elysia()
     }
   )
   .post(
+    "/generate-faq",
+    async ({ body }) => {
+      const { article } = body;
+      const { generateFaq } = await import("./gemini");
+      return await generateFaq(article, phrases.phrases);
+    },
+    {
+      body: t.Object({
+        article: t.String()
+      })
+    }
+  )
+  .post(
     "/upload-pdf",
     async ({ body }) => {
       const { file } = body;

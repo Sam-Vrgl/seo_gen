@@ -78,3 +78,97 @@ This check must be case-insensitive and match whole words or phrases, including 
     throw new Error("Failed to analyze articles");
   }
 };
+
+export const generateFaq = async (article: string, phrases: string[]): Promise<string> => {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not set");
+  }
+
+  const prompt = `
+Generate exactly 10 FAQ items.
+
+Source Material and Content
+
+The only source for all content must be the main body text of the article provided below.
+
+<article_text>
+${article}
+</article_text>
+
+Do not add any claims, definitions, or context not explicitly supported by the source text.
+
+All content must be paraphrased.
+
+Exception: Scientific names, measurements, and gene or protein labels may be quoted verbatim only if they appear in the source.
+
+Writing Style and Tone
+
+Tone: Maintain a calm, confident, and non-promotional tone. Avoid enthusiasm and "sales" language.
+
+Voice: Use the passive voice.
+
+Language: Use clear, direct language with simple British spelling.
+
+Readability: Target a Flesch readability score of 50 or higher.
+
+Vocabulary: Avoid complex jargon, adverbs, and buzzwords.
+
+Formatting and Structure
+
+Questions:
+
+Keep questions concise (1–2 sentences) and vary their lengths.
+
+Inclusive "we" phrasing (e.g., "How can we use...") is permitted.
+
+Answers:
+
+Each answer must be 100–150 words.
+
+Vary the specific lengths of the answers across the 10 items (e.g., one 105 words, one 140 words).
+
+Within each answer, sentence lengths must alternate (mix short and long sentences) to support high readability.
+
+"We" may be used occasionally in answers if it reflects shared practice or reasoning.
+
+Constraints and Forbidden Content
+
+Punctuation:
+
+Do not use em dashes. Commas, colons, or parentheses may be used as substitutes.
+
+Do not use ellipses (...) or exclamation marks (!).
+
+Forbidden Terms:
+
+The blocklist from ai_phrases.json must be loaded and strictly enforced.
+
+This check must be case-insensitive and match whole words or phrases, including common inflections.
+
+If a forbidden term appears in the source text, it must be rephrased neutrally or omitted.
+
+Forbidden Terms List:
+${phrases.join(", ")}
+`;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    
+    if (process.env.LIST_TOKEN_USE === 'true') {
+      const tokenUsage = response.usageMetadata;
+      if (tokenUsage) {
+        console.log("=== Gemini Token Usage (FAQ) ===");
+        console.log(`Prompt Tokens: ${tokenUsage.promptTokenCount}`);
+        console.log(`Candidate Tokens: ${tokenUsage.candidatesTokenCount}`);
+        console.log(`Total Tokens: ${tokenUsage.totalTokenCount}`);
+        console.log('============================');
+      }
+    }
+
+    return response.text();
+  } catch (error) {
+    console.error("Error generating FAQ with Gemini:", error);
+    throw new Error("Failed to generate FAQ");
+  }
+};
