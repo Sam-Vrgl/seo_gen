@@ -22,6 +22,8 @@ function App() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [faq, setFaq] = useState<string | null>(null);
   const [faqLoading, setFaqLoading] = useState(false);
+  const [illustration, setIllustration] = useState<string | null>(null);
+  const [illustrationLoading, setIllustrationLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -43,6 +45,7 @@ function App() {
     setSelectedArticles(new Set());
     setSummary(null);
     setFaq(null);
+    setIllustration(null);
 
     try {
       const { data, error } = await api.search.get({
@@ -111,6 +114,7 @@ function App() {
 
     setSummaryLoading(true);
     setFaq(null);
+    setIllustration(null);
     try {
         const { data, error } = await api.analyze.post({
             articles: articlesToAnalyze
@@ -148,6 +152,29 @@ function App() {
         console.error(err);
     } finally {
         setFaqLoading(false);
+    }
+  };
+
+  const handleGenerateIllustration = async () => {
+    if (!summary) return;
+
+    setIllustrationLoading(true);
+    setIllustration(null);
+    try {
+        const { data, error } = await api['generate-illustration'].post({
+            article: summary
+        });
+        
+        if (error) {
+             setError(error.value ? String(error.value) : 'Failed to generate illustration');
+        } else if (data) {
+             setIllustration(data as string);
+        }
+    } catch (err) {
+        setError('Failed to trigger illustration generation');
+        console.error(err);
+    } finally {
+        setIllustrationLoading(false);
     }
   };
 
@@ -312,7 +339,7 @@ function App() {
                 <ReactMarkdown>{summary}</ReactMarkdown>
             </div>
             
-            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center' }}>
+            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center', gap: '1rem' }}>
                 <button 
                     className="analyze-btn" 
                     onClick={handleGenerateFaq} 
@@ -320,6 +347,14 @@ function App() {
                     style={{ backgroundColor: '#10b981', color: 'white' }}
                 >
                     {faqLoading ? 'Generating FAQs...' : 'Generate FAQs'}
+                </button>
+                <button 
+                    className="analyze-btn" 
+                    onClick={handleGenerateIllustration} 
+                    disabled={illustrationLoading}
+                    style={{ backgroundColor: '#f59e0b', color: 'white' }}
+                >
+                    {illustrationLoading ? 'Generating Illustration...' : 'Generate Illustration'}
                 </button>
             </div>
         </div>
@@ -337,6 +372,22 @@ function App() {
             <h2>Frequently Asked Questions</h2>
             <div className="markdown-content">
                 <ReactMarkdown>{faq}</ReactMarkdown>
+            </div>
+        </div>
+      )}
+
+      {illustrationLoading && (
+        <div className="summary-section loading-state" style={{ marginTop: '1rem' }}>
+            <div className="spinner"></div>
+            <p>Generating Scientific Illustration...</p>
+        </div>
+      )}
+
+      {illustration && !illustrationLoading && (
+        <div className="summary-section" style={{ marginTop: '1rem', borderTop: '2px solid #eee' }}>
+            <h2>Scientific Illustration</h2>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
+               <img src={`data:image/jpeg;base64,${illustration}`} alt="Generated Scientific Illustration" style={{ maxWidth: '100%', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} />
             </div>
         </div>
       )}

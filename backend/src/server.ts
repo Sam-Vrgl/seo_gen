@@ -70,6 +70,19 @@ const app = new Elysia()
     }
   )
   .post(
+    "/generate-illustration",
+    async ({ body }) => {
+      const { article } = body;
+      const { generateIllustration } = await import("./gemini");
+      return await generateIllustration(article);
+    },
+    {
+      body: t.Object({
+        article: t.String()
+      })
+    }
+  )
+  .post(
     "/upload-pdf",
     async ({ body }) => {
       const { file } = body;

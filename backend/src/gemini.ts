@@ -172,3 +172,40 @@ ${phrases.join(", ")}
     throw new Error("Failed to generate FAQ");
   }
 };
+
+export const generateIllustration = async (article: string): Promise<string> => {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is not set");
+  }
+
+  // Create a descriptive prompt for the image. We limit the article length
+  // to avoid very large payloads, focusing on the core concepts.
+  const prompt = `Generate a detailed scientific illustration based on the following article content: ${article.substring(0, 1500)}. Make it highly detailed, suitable for a professional scientific publication, and visually striking.`;
+
+  try {
+     const imagenModel = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash-image",
+     });
+
+    const result = await imagenModel.generateContent(prompt);
+    
+    // The SDK returns image data in the parts array if it's an image model
+    const parts = result.response.candidates?.[0]?.content?.parts;
+    
+    // Find the first part that contains inlineData (the image)
+    const imagePart = parts?.find(p => p.inlineData && p.inlineData.data);
+    const responseData = imagePart?.inlineData?.data;
+    
+    if (!responseData) {
+      console.log("=== SDK Response for Image ===");
+      console.log(JSON.stringify(result.response, null, 2));
+      console.log("==============================");
+      throw new Error("No image data returned from Gemini SDK");
+    }
+
+    return String(responseData);
+  } catch (error) {
+    console.error("Error generating illustration with SDK:", error);
+    throw new Error("Failed to generate illustration");
+  }
+};
