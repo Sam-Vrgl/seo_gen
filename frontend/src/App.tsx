@@ -373,6 +373,15 @@ function App() {
             <div className="markdown-content">
                 <ReactMarkdown>{faq}</ReactMarkdown>
             </div>
+            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+                <button 
+                    className="analyze-btn" 
+                    disabled
+                    style={{ backgroundColor: '#9ca3af', color: 'white', cursor: 'not-allowed' }}
+                >
+                    Generate Elementor FAQ
+                </button>
+            </div>
         </div>
       )}
 

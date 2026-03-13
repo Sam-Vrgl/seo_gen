@@ -156,12 +156,23 @@ export const fetchPmcFullText = async (pmcId: string): Promise<string | undefine
         
         if (!response.ok) {
             console.warn(`Failed to fetch BioC JSON for ${cleanId}: ${response.status} ${response.statusText}`);
-            const text = await response.text();
-            console.warn(`Response body: ${text.substring(0, 200)}`);
             return undefined;
         }
 
-        const data = (await response.json()) as any;
+        const contentType = response.headers.get("content-type");
+        if (!contentType || !contentType.includes("application/json")) {
+            console.warn(`BioC API did not return JSON for ${cleanId}. It might not be in the Open Access subset.`);
+            return undefined;
+        }
+
+        const rawText = await response.text();
+        let data;
+        try {
+            data = JSON.parse(rawText);
+        } catch (e) {
+            console.warn(`BioC API returned invalid JSON for ${cleanId}.`);
+            return undefined;
+        }
         const collection = Array.isArray(data) ? data[0] : data;
         
         if (!collection || !collection.documents || collection.documents.length === 0) {
