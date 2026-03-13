@@ -17,7 +17,8 @@ This project requires **Bun**, a fast JavaScript runtime. If you don't already h
 3. Wait for the installation to finish.
 4. **Close** the PowerShell window so the changes take effect.
 
-5. Create a .env file in the backend folder with the following content:
+5. If no .env is present the application will ask for one on first run. Copy paste your key into the console when asked.
+   Otherwise you can create one manually in the backend folder with the following content:
    ```
    GEMINI_API_KEY = your_api_key
    ```
@@ -38,3 +39,11 @@ The script will automatically:
 
 Enjoy! The tool will be accessible on your browser at:
 👉 **[http://localhost:5173](http://localhost:5173)**
+
+
+### 3. Customising prompts
+
+Prompts are located in the gemini.ts file. You can edit them to change the output of the application.
+Only edit the raw text part of the prompts, not the code part such as ${article} or ${phrases}.
+
+
