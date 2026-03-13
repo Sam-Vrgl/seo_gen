@@ -180,11 +180,28 @@ export const generateIllustration = async (article: string): Promise<string> => 
 
   // Create a descriptive prompt for the image. We limit the article length
   // to avoid very large payloads, focusing on the core concepts.
-  const prompt = `Generate a detailed scientific illustration based on the following article content: ${article.substring(0, 1500)}. Make it highly detailed, suitable for a professional scientific publication, and visually striking.`;
+  const prompt = `
+  Generate a detailed scientific illustration based on the following article content: ${article.substring(0, 1500)}.
+
+
+Style and Layout Instructions:
+
+- Composition: Organize the image into 3 distinct, vertical panels. Each panel should focus on one primary theme from the text.
+
+- Visual Style: Clean "Modern Medical Textbook" aesthetic. Use a neutral or off-white background with a professional color palette (muted blues, teals, and greys).
+
+- Content Density: Banner-style. Prioritize clear, high-quality central illustrations over complex diagrams. Avoid cluttered flowcharts or dense data plots.
+
+- Labelling: Minimal text. Include one short title (2-4 words) per panel and no more than 2-3 simple labels per panel, make sure to not repeat labels. Ensure text is legible in a clean sans-serif font.
+
+- Technical Detail: Focus on 1-2 key anatomical or molecular features per panel (e.g., a specific organ or a simplified DNA strand).
+
+- Strict Constraint: No science-fiction elements, neon glows, or hyper-complex infographic matrices. Aim for the clarity and elegance of a Nature or Science journal figure.
+  `;
 
   try {
      const imagenModel = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash-image",
+        model: "gemini-3.1-flash-image-preview",
      });
 
     const result = await imagenModel.generateContent(prompt);
