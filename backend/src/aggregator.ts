@@ -16,10 +16,111 @@ export interface Article {
   fullText?: string;
 }
 
+export interface SearchClause {
+  term: string;
+  field: 'title' | 'abstract' | 'title_abstract' | 'all';
+  operator: 'AND' | 'OR' | 'NOT';
+}
+
+export interface AdvancedSearchOptions {
+  clauses: SearchClause[];
+}
+
 const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix : "@_"
 });
+
+/**
+ * Wraps a term in quotes for the API if it contains spaces and isn't already quoted.
+ */
+const quoteTerm = (term: string): string => {
+    const trimmed = term.trim();
+    if (trimmed.startsWith('"') && trimmed.endsWith('"')) return trimmed;
+    if (trimmed.includes(' ')) return `"${trimmed}"`;
+    return trimmed;
+};
+
+/**
+ * Builds an ArXiv-compatible query string from advanced search clauses.
+ * Maps fields to ArXiv prefixes: ti:, abs:, all:
+ * Uses AND, OR, ANDNOT as boolean connectors.
+ */
+export const buildArxivQuery = (clauses: SearchClause[]): string => {
+    if (clauses.length === 0) return '';
+
+    const parts: string[] = [];
+
+    for (let i = 0; i < clauses.length; i++) {
+        const clause = clauses[i]!;
+        const term = quoteTerm(clause.term);
+
+        let fragment: string;
+        switch (clause.field) {
+            case 'title':
+                fragment = `ti:${term}`;
+                break;
+            case 'abstract':
+                fragment = `abs:${term}`;
+                break;
+            case 'title_abstract':
+                fragment = `(ti:${term} OR abs:${term})`;
+                break;
+            case 'all':
+            default:
+                fragment = `all:${term}`;
+                break;
+        }
+
+        if (i === 0) {
+            parts.push(fragment);
+        } else {
+            const op = clause.operator === 'NOT' ? 'ANDNOT' : clause.operator;
+            parts.push(`${op} ${fragment}`);
+        }
+    }
+
+    return parts.join(' ');
+};
+
+/**
+ * Builds a PubMed/PMC-compatible query string from advanced search clauses.
+ * Maps fields to PubMed tags: [ti], [tiab], or bare.
+ * Uses AND, OR, NOT as boolean connectors.
+ */
+export const buildPubmedQuery = (clauses: SearchClause[]): string => {
+    if (clauses.length === 0) return '';
+
+    const parts: string[] = [];
+
+    for (let i = 0; i < clauses.length; i++) {
+        const clause = clauses[i]!;
+        const term = quoteTerm(clause.term);
+
+        let fragment: string;
+        switch (clause.field) {
+            case 'title':
+                fragment = `${term}[ti]`;
+                break;
+            case 'abstract':
+            case 'title_abstract':
+                fragment = `${term}[tiab]`;
+                break;
+            case 'all':
+            default:
+                fragment = term;
+                break;
+        }
+
+        if (i === 0) {
+            parts.push(fragment);
+        } else {
+            parts.push(`${clause.operator} ${fragment}`);
+        }
+    }
+
+    return parts.join(' ');
+};
 
 const formatDateForArxiv = (dateStr: string): string => {
     return dateStr.replace(/-/g, "") + "0000";
@@ -80,9 +181,11 @@ const fetchArxivPdf = async (idUrl: string): Promise<string | undefined> => {
     }
 }
 
-export const fetchArxivPapers = async (query: string, limit: number = 5, startDate?: string, endDate?: string, includeFullPapers: boolean = false): Promise<Article[]> => {
+export const fetchArxivPapers = async (query: string, limit: number = 5, startDate?: string, endDate?: string, includeFullPapers: boolean = false, prebuiltQuery?: string): Promise<Article[]> => {
   try {
-    let searchQuery = `all:${encodeURIComponent(query)}`;
+    let searchQuery = prebuiltQuery
+        ? prebuiltQuery.replace(/ /g, '+').replace(/"/g, '%22')
+        : `all:${encodeURIComponent(query)}`;
     
     if (startDate || endDate) {
         const start = startDate ? formatDateForArxiv(startDate) : "000000000000";
@@ -91,9 +194,9 @@ export const fetchArxivPapers = async (query: string, limit: number = 5, startDa
         searchQuery += `+AND+submittedDate:[${start}+TO+${end}]`;
     }
 
-    const response = await fetch(
-      `http://export.arxiv.org/api/query?search_query=${searchQuery}&start=0&max_results=${limit}`
-    );
+    const arxivUrl = `http://export.arxiv.org/api/query?search_query=${searchQuery}&start=0&max_results=${limit}`;
+    console.log('[ArXiv] Fetching:', arxivUrl);
+    const response = await fetch(arxivUrl);
     const xml = await response.text();
     const result = parser.parse(xml);
 
@@ -198,15 +301,16 @@ export const fetchPmcFullText = async (pmcId: string): Promise<string | undefine
     }
 }
 
-export const fetchPmcPapers = async (query: string, limit: number = 5, startDate?: string, endDate?: string, fetchFullText: boolean = false): Promise<Article[]> => {
+export const fetchPmcPapers = async (query: string, limit: number = 5, startDate?: string, endDate?: string, fetchFullText: boolean = false, prebuiltQuery?: string): Promise<Article[]> => {
   try {
     let dateParams = "";
     if (startDate) dateParams += `&mindate=${startDate.replace(/-/g, "/")}`;
     if (endDate) dateParams += `&maxdate=${endDate.replace(/-/g, "/")}`;
 
+    const effectiveQuery = prebuiltQuery || query;
     const searchResponse = await fetch(
       `https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pmc&term=${encodeURIComponent(
-        query
+        effectiveQuery
       )}&retmode=json&retmax=${limit}${dateParams}`
     );
     const searchData = (await searchResponse.json()) as PubMedSearchResponse;
@@ -256,6 +360,7 @@ export interface SearchOptions {
     startDate?: string; // YYYY-MM-DD
     endDate?: string;   // YYYY-MM-DD
     includeFullPapers?: boolean;
+    advanced?: AdvancedSearchOptions;
 }
 
 export const searchAggregator = async (query: string, options: SearchOptions = {}): Promise<Article[]> => {
@@ -265,17 +370,28 @@ export const searchAggregator = async (query: string, options: SearchOptions = {
         includePubmed = true,
         startDate,
         endDate,
-        includeFullPapers = false
+        includeFullPapers = false,
+        advanced
     } = options;
+
+    let arxivQuery: string | undefined;
+    let pubmedQuery: string | undefined;
+
+    if (advanced && advanced.clauses.length > 0) {
+        arxivQuery = buildArxivQuery(advanced.clauses);
+        pubmedQuery = buildPubmedQuery(advanced.clauses);
+        console.log('[Advanced] ArXiv query:', arxivQuery);
+        console.log('[Advanced] PubMed query:', pubmedQuery);
+    }
 
     const promises: Promise<Article[]>[] = [];
 
     if (includeArxiv) {
-        promises.push(fetchArxivPapers(query, limit, startDate, endDate, includeFullPapers));
+        promises.push(fetchArxivPapers(query, limit, startDate, endDate, includeFullPapers, arxivQuery));
     }
     
     if (includePubmed) {
-        promises.push(fetchPmcPapers(query, limit, startDate, endDate, includeFullPapers));
+        promises.push(fetchPmcPapers(query, limit, startDate, endDate, includeFullPapers, pubmedQuery));
     }
 
     const results = await Promise.all(promises);

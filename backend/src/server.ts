@@ -35,6 +35,50 @@ const app = new Elysia()
     }
   )
   .post(
+    "/advanced-search",
+    async ({ body }) => {
+      const { clauses, limit, includeArxiv, includePubmed, startDate, endDate, includeFullPapers } = body;
+      if (!clauses || clauses.length === 0) {
+        return [];
+      }
+      return await searchAggregator("", {
+        limit: limit ?? 5,
+        includeArxiv: includeArxiv ?? true,
+        includePubmed: includePubmed ?? true,
+        startDate,
+        endDate,
+        includeFullPapers: includeFullPapers ?? false,
+        advanced: { clauses }
+      });
+    },
+    {
+      body: t.Object({
+        clauses: t.Array(
+          t.Object({
+            term: t.String(),
+            field: t.Union([
+              t.Literal('title'),
+              t.Literal('abstract'),
+              t.Literal('title_abstract'),
+              t.Literal('all')
+            ]),
+            operator: t.Union([
+              t.Literal('AND'),
+              t.Literal('OR'),
+              t.Literal('NOT')
+            ])
+          })
+        ),
+        limit: t.Optional(t.Number()),
+        includeArxiv: t.Optional(t.Boolean()),
+        includePubmed: t.Optional(t.Boolean()),
+        startDate: t.Optional(t.String()),
+        endDate: t.Optional(t.String()),
+        includeFullPapers: t.Optional(t.Boolean())
+      })
+    }
+  )
+  .post(
     "/analyze",
     async ({ body }) => {
       const { articles } = body;

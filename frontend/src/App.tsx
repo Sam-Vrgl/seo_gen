@@ -3,6 +3,21 @@ import './App.css';
 import { api } from './api';
 import ReactMarkdown from 'react-markdown';
 
+interface SearchClause {
+  term: string;
+  field: 'title' | 'abstract' | 'title_abstract' | 'all';
+  operator: 'AND' | 'OR' | 'NOT';
+}
+
+const FIELD_LABELS: Record<SearchClause['field'], string> = {
+  title: 'Title',
+  abstract: 'Abstract',
+  title_abstract: 'Title + Abstract',
+  all: 'All Fields'
+};
+
+const defaultClause = (): SearchClause => ({ term: '', field: 'all', operator: 'AND' });
+
 function App() {
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(5);
@@ -11,6 +26,8 @@ function App() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [includeFullPapers, setIncludeFullPapers] = useState(true);
+  const [advancedMode, setAdvancedMode] = useState(false);
+  const [clauses, setClauses] = useState<SearchClause[]>([defaultClause()]);
   
   const [articles, setArticles] = useState<any[]>([]);
   const [selectedArticles, setSelectedArticles] = useState<Set<string>>(new Set());
@@ -36,6 +53,16 @@ function App() {
     }
   }, [error]);
 
+  // ---- Clause management ----
+  const updateClause = (index: number, updates: Partial<SearchClause>) => {
+    setClauses(prev => prev.map((c, i) => i === index ? { ...c, ...updates } : c));
+  };
+  const addClause = () => setClauses(prev => [...prev, defaultClause()]);
+  const removeClause = (index: number) => {
+    setClauses(prev => prev.length <= 1 ? prev : prev.filter((_, i) => i !== index));
+  };
+
+  // ---- Simple search ----
   const handleSearch = async () => {
     if (!query.trim()) return;
     
@@ -65,6 +92,47 @@ function App() {
       } else if (data) {
         setArticles(data);
         setSelectedArticles(new Set(data.map((a: any) => a.url)));
+      }
+    } catch (err) {
+      setError('Failed to fetch data');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ---- Advanced search ----
+  const handleAdvancedSearch = async () => {
+    const validClauses = clauses.filter(c => c.term.trim() !== '');
+    if (validClauses.length === 0) {
+      setError('Please enter at least one search term.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setArticles([]);
+    setSelectedArticles(new Set());
+    setSummary(null);
+    setFaq(null);
+    setIllustration(null);
+
+    try {
+      const { data, error } = await api['advanced-search'].post({
+        clauses: validClauses,
+        limit,
+        includeArxiv,
+        includePubmed,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        includeFullPapers
+      });
+
+      if (error) {
+        setError(error.value ? String(error.value) : 'Unknown error');
+      } else if (data) {
+        setArticles(data as any[]);
+        setSelectedArticles(new Set((data as any[]).map((a: any) => a.url)));
       }
     } catch (err) {
       setError('Failed to fetch data');
@@ -216,18 +284,101 @@ function App() {
     <div className="container">
       <h1>Research Paper Search</h1>
       <div className="search-panel">
-        <div className="search-box">
+
+        {/* Toggle between simple and advanced */}
+        <div className="search-mode-toggle">
+          <button
+            className={`mode-btn ${!advancedMode ? 'active' : ''}`}
+            onClick={() => setAdvancedMode(false)}
+          >Simple Search</button>
+          <button
+            className={`mode-btn ${advancedMode ? 'active' : ''}`}
+            onClick={() => setAdvancedMode(true)}
+          >Advanced Search</button>
+        </div>
+
+        {/* ---- Simple search bar ---- */}
+        {!advancedMode && (
+          <div className="search-box">
             <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Enter topic (e.g., machine learning)"
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Enter topic (e.g., machine learning)"
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
             <button onClick={handleSearch} disabled={loading}>
-            {loading ? 'Searching...' : 'Search'}
+              {loading ? 'Searching...' : 'Search'}
             </button>
-        </div>
+          </div>
+        )}
+
+        {/* ---- Advanced search builder ---- */}
+        {advancedMode && (
+          <div className="advanced-search">
+            <div className="advanced-clauses">
+              {clauses.map((clause, i) => (
+                <div key={i} className="advanced-row">
+                  {/* Boolean operator (hidden for first row) */}
+                  {i === 0 ? (
+                    <div className="operator-spacer"></div>
+                  ) : (
+                    <select
+                      className="operator-select"
+                      value={clause.operator}
+                      onChange={(e) => updateClause(i, { operator: e.target.value as SearchClause['operator'] })}
+                    >
+                      <option value="AND">AND</option>
+                      <option value="OR">OR</option>
+                      <option value="NOT">NOT</option>
+                    </select>
+                  )}
+
+                  {/* Search term */}
+                  <input
+                    type="text"
+                    className="clause-term"
+                    value={clause.term}
+                    onChange={(e) => updateClause(i, { term: e.target.value })}
+                    placeholder='Keyword or "exact phrase"'
+                    onKeyDown={(e) => e.key === 'Enter' && handleAdvancedSearch()}
+                  />
+
+                  {/* Field selector */}
+                  <select
+                    className="field-select"
+                    value={clause.field}
+                    onChange={(e) => updateClause(i, { field: e.target.value as SearchClause['field'] })}
+                  >
+                    {Object.entries(FIELD_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+
+                  {/* Remove button */}
+                  <button
+                    className="clause-btn remove-btn"
+                    onClick={() => removeClause(i)}
+                    disabled={clauses.length <= 1}
+                    title="Remove clause"
+                  >−</button>
+                </div>
+              ))}
+            </div>
+
+            <div className="advanced-actions">
+              <button
+                className="clause-btn add-btn"
+                onClick={addClause}
+                disabled={clauses.length >= 8}
+                title="Add clause"
+              >+ Add condition</button>
+              <button onClick={handleAdvancedSearch} disabled={loading}>
+                {loading ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+          </div>
+        )}
         
         <div className="filters">
             <div className="filter-group">
@@ -446,7 +597,7 @@ function App() {
             )}
           </div>
         ))}
-        {articles.length === 0 && !loading && !error && query && (
+        {articles.length === 0 && !loading && !error && (query || clauses.some(c => c.term.trim())) && (
           <p>No results found.</p>
         )}
       </div>
