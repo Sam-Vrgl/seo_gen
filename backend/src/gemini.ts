@@ -19,42 +19,10 @@ export const analyzeArticles = async (articles: Article[], phrases: string[]): P
 
   const articlesToAnalyze = articles.slice(0, 10);
 
-  const prompt =  `
+  const promptBase = await Bun.file(import.meta.dir + "/prompt.txt").text();
 
-  You are a human expert researcher writing scientific articles for a biotech company. Here are summaries of recent papers in the field. 
-Please provide an SEO optimized article based on these papers to boost the company's SEO ranking. Aim for a length of 2000 words.
-
-Define each abbreviation and acronym the first time it is used.
-
-Instead of placing references in text place a number in brackets at the end of the relevant sentence or paragraph, e.g. [1].
-The number should correspond to the number of the paper in the reference list,
-Do not over reference, use a article reference at most 4-5 times.
-
-The article should be written in a scientific style, with proper citations and references.
-Do not add any claims, definitions, or context not explicitly supported by the source text.
-
-Always start the article with a title.
-
-Writing Style and Tone
-
-Style: Write as a human expert researcher.
-
-Tone: Maintain a calm, confident, and non-promotional tone. Avoid enthusiasm and "sales" language.
-
-Voice: Use the passive voice.
-
-Language: Use clear, direct language with simple British spelling.
-
-Readability: Target a Flesch readability score of 50 or higher.
-
-Vocabulary: Avoid complex jargon, adverbs, and buzzwords as well as superlatives.
-
-Punctuation:
-
-Do not use em dashes. Commas, colons, or parentheses may be used as substitutes.
-
-Do not use ellipses (...) or exclamation marks (!).
-
+  const prompt = `
+${promptBase}
 
 Here are the papers:
 ${articlesToAnalyze.map((a, i) => `
