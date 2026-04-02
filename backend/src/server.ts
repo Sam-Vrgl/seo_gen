@@ -4,6 +4,7 @@ import { searchAggregator } from "./aggregator";
 
 const phrases = require("../phrases.json");
 
+
 const app = new Elysia()
   .use(cors())
   .get(
