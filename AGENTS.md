@@ -15,7 +15,7 @@ We are building a **Bun-first, TypeScript-only** web application that acts as an
 * **Backend Framework:** `ElysiaJS` (Eden Treaty for type safety).
 * **Database:** `bun:sqlite` (Native SQLite).
 * **Frontend:** `React` + `Vite` + `TailwindCSS`.
-* **AI/LLM:** Google Gemini API (Model: `gemini-1.5-pro` for reasoning, `gemini-1.5-flash` for dev/speed).
+* **AI/LLM:** Google Gemini API (Model: `gemini-2.5-pro` for reasoning, `gemini-2.5-flash` for dev/speed).
 * **External APIs:** Semantic Scholar, PubMed (E-utils), ArXiv.
 * **NO PYTHON:** All logic, including text parsing, must be done in TypeScript.
 

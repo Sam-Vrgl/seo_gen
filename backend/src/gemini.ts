@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { Article } from "./aggregator";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
 
 export const analyzeArticles = async (articles: Article[], phrases: string[]): Promise<string> => {
   if (!process.env.GEMINI_API_KEY) {
@@ -48,7 +48,7 @@ ${i + 1}. **${a.title}**
    - Authors: ${a.authors.join(", ")}
    - Published: ${a.published_date}
    - Source: ${a.source}
-   - Content: ${a.fullText ? `[FULL TEXT EXTRACT]\n${a.fullText.slice(0, 30000)}...` : `[ABSTRACT]\n${a.abstract}`}
+   - Content: ${a.fullText ? `[FULL TEXT EXTRACT]\n${a.fullText.slice(0, 10000)}...` : `[ABSTRACT]\n${a.abstract}`}
 `).join("\n")}
 Avoid using the phrases in the list below:
 ${phrases.join(", ")}
@@ -56,8 +56,17 @@ This check must be case-insensitive and match whole words or phrases, including 
 `;
 
   try {
+    console.log('[Gemini] Sending generateContent request (analyzeArticles)...');
+    console.log(`[Gemini] Prompt length: ${prompt.length} characters (approx. ${Math.round(prompt.length / 4)} tokens).`);
+    console.log('[Gemini] Waiting for Gemini API to process... This may take up to 60 seconds for large full-text contexts.');
+    console.time('[Gemini] API Response Time');
+    
     const result = await model.generateContent(prompt);
     const response = await result.response;
+    
+    console.timeEnd('[Gemini] API Response Time');
+    console.log('[Gemini] Received response (analyzeArticles).');
+    console.log('[Gemini] Response snippet:', response.text().substring(0, 300).replace(/\n/g, ' ') + '...');
     
     if (process.env.LIST_TOKEN_USE === 'true') {
       const tokenUsage = response.usageMetadata;
@@ -74,8 +83,9 @@ This check must be case-insensitive and match whole words or phrases, including 
 
     return response.text();
   } catch (error) {
-    console.error("Error analyzing articles with Gemini:", error);
-    throw new Error("Failed to analyze articles");
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[Gemini] Error analyzing articles:", message);
+    throw new Error(`Failed to analyze articles: ${message}`);
   }
 };
 
@@ -152,8 +162,12 @@ ${phrases.join(", ")}
 `;
 
   try {
+    console.log('[Gemini] Sending generateContent request (generateFaq)...');
+    console.log('[Gemini] Prompt snippet:', prompt.substring(0, 300).replace(/\n/g, ' ') + '...');
     const result = await model.generateContent(prompt);
     const response = await result.response;
+    console.log('[Gemini] Received response (generateFaq).');
+    console.log('[Gemini] Response snippet:', response.text().substring(0, 300).replace(/\n/g, ' ') + '...');
     
     if (process.env.LIST_TOKEN_USE === 'true') {
       const tokenUsage = response.usageMetadata;
@@ -168,8 +182,9 @@ ${phrases.join(", ")}
 
     return response.text();
   } catch (error) {
-    console.error("Error generating FAQ with Gemini:", error);
-    throw new Error("Failed to generate FAQ");
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[Gemini] Error generating FAQ:", message);
+    throw new Error(`Failed to generate FAQ: ${message}`);
   }
 };
 
@@ -204,7 +219,10 @@ Style and Layout Instructions:
         model: "gemini-3.1-flash-image-preview",
      });
 
+    console.log('[Gemini] Sending generateContent request (generateIllustration)...');
+    console.log('[Gemini] Prompt snippet:', prompt.substring(0, 300).replace(/\n/g, ' ') + '...');
     const result = await imagenModel.generateContent(prompt);
+    console.log('[Gemini] Received response (generateIllustration).');
     
     // The SDK returns image data in the parts array if it's an image model
     const parts = result.response.candidates?.[0]?.content?.parts;
@@ -222,7 +240,8 @@ Style and Layout Instructions:
 
     return String(responseData);
   } catch (error) {
-    console.error("Error generating illustration with SDK:", error);
-    throw new Error("Failed to generate illustration");
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[Gemini] Error generating illustration:", message);
+    throw new Error(`Failed to generate illustration: ${message}`);
   }
 };

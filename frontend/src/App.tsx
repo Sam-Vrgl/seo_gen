@@ -41,6 +41,7 @@ function App() {
   const [faqLoading, setFaqLoading] = useState(false);
   const [illustration, setIllustration] = useState<string | null>(null);
   const [illustrationLoading, setIllustrationLoading] = useState(false);
+  const [elementorLoading, setElementorLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -184,18 +185,28 @@ function App() {
     setFaq(null);
     setIllustration(null);
     try {
+        console.log('[Frontend] → POST /analyze');
+        console.log('[Frontend] Sending articles:', articlesToAnalyze.map(a => ({
+          title: a.title,
+          source: a.source,
+          url: a.url,
+          hasFullText: !!a.fullText,
+          fullTextLength: a.fullText?.length ?? 0,
+        })));
         const { data, error } = await api.analyze.post({
             articles: articlesToAnalyze
         });
         
         if (error) {
+             console.error('[Frontend] /analyze error:', error);
              setError(error.value ? String(error.value) : 'Failed to analyze');
         } else {
+             console.log('[Frontend] /analyze success, response length:', (data as string)?.length);
              setSummary(data);
         }
     } catch (err) {
+        console.error('[Frontend] /analyze caught exception:', err);
         setError('Failed to trigger analysis');
-        console.error(err);
     } finally {
         setSummaryLoading(false);
     }
@@ -206,18 +217,21 @@ function App() {
 
     setFaqLoading(true);
     try {
+        console.log('[Frontend] → POST /generate-faq, article length:', summary.length);
         const { data, error } = await api['generate-faq'].post({
             article: summary
         });
         
         if (error) {
+             console.error('[Frontend] /generate-faq error:', error);
              setError(error.value ? String(error.value) : 'Failed to generate FAQ');
         } else {
+             console.log('[Frontend] /generate-faq success, response length:', (data as string)?.length);
              setFaq(data);
         }
     } catch (err) {
+        console.error('[Frontend] /generate-faq caught exception:', err);
         setError('Failed to trigger FAQ generation');
-        console.error(err);
     } finally {
         setFaqLoading(false);
     }
@@ -229,20 +243,57 @@ function App() {
     setIllustrationLoading(true);
     setIllustration(null);
     try {
+        console.log('[Frontend] → POST /generate-illustration, article length:', summary.length);
         const { data, error } = await api['generate-illustration'].post({
             article: summary
         });
         
         if (error) {
+             console.error('[Frontend] /generate-illustration error:', error);
              setError(error.value ? String(error.value) : 'Failed to generate illustration');
         } else if (data) {
+             console.log('[Frontend] /generate-illustration success, base64 length:', (data as string)?.length);
              setIllustration(data as string);
         }
     } catch (err) {
+        console.error('[Frontend] /generate-illustration caught exception:', err);
         setError('Failed to trigger illustration generation');
-        console.error(err);
     } finally {
         setIllustrationLoading(false);
+    }
+  };
+
+  const handleGenerateElementorArticle = async () => {
+    if (!summary) return;
+
+    setElementorLoading(true);
+    try {
+        const titleMatch = summary.match(/^#\s+(.*)/m);
+        const title = titleMatch ? titleMatch[1] : 'Scientific Article';
+
+        const { data, error } = await api['generate-elementor-article'].post({
+            title,
+            article: summary,
+            illustration: illustration || undefined,
+            faq: faq || undefined
+        });
+        
+        if (error) {
+             setError(error.value ? String(error.value) : 'Failed to generate Elementor section');
+        } else if (data) {
+             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+             const url = window.URL.createObjectURL(blob);
+             const a = document.createElement('a');
+             a.href = url;
+             a.download = `elementor-article-${Date.now()}.json`;
+             a.click();
+             window.URL.revokeObjectURL(url);
+        }
+    } catch (err) {
+        setError('Failed to trigger Elementor generation');
+        console.error(err);
+    } finally {
+        setElementorLoading(false);
     }
   };
 
@@ -527,10 +578,11 @@ function App() {
             <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
                 <button 
                     className="analyze-btn" 
-                    disabled
-                    style={{ backgroundColor: '#9ca3af', color: 'white', cursor: 'not-allowed' }}
+                    onClick={handleGenerateElementorArticle}
+                    disabled={elementorLoading}
+                    style={{ backgroundColor: '#ef114a', color: 'white' }}
                 >
-                    Generate Elementor FAQ
+                    {elementorLoading ? 'Generating Elementor Section...' : 'Export to Elementor (with FAQ)'}
                 </button>
             </div>
         </div>
@@ -548,6 +600,17 @@ function App() {
             <h2>Scientific Illustration</h2>
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: '1rem' }}>
                <img src={`data:image/jpeg;base64,${illustration}`} alt="Generated Scientific Illustration" style={{ maxWidth: '100%', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }} />
+            </div>
+            
+            <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'center' }}>
+                <button 
+                    className="analyze-btn" 
+                    onClick={handleGenerateElementorArticle} 
+                    disabled={elementorLoading}
+                    style={{ backgroundColor: '#ef114a', color: 'white' }}
+                >
+                    {elementorLoading ? 'Generating Elementor Section...' : 'Export to Elementor (Article & Image)'}
+                </button>
             </div>
         </div>
       )}

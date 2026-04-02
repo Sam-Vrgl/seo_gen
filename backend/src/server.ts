@@ -94,7 +94,8 @@ const app = new Elysia()
                 abstract: t.String(),
                 url: t.String(),
                 source: t.Union([t.Literal("ArXiv"), t.Literal("PubMed"), t.Literal("User Upload")]),
-                published_date: t.String()
+                published_date: t.String(),
+                fullText: t.Optional(t.String())
              })
         ) 
       })
@@ -162,6 +163,22 @@ const app = new Elysia()
     {
       body: t.Object({
         file: t.File()
+      })
+    }
+  )
+  .post(
+    "/generate-elementor-article",
+    async ({ body }) => {
+      const { title, article, illustration, faq } = body;
+      const { generateElementorArticle } = await import("./elementor");
+      return await generateElementorArticle(title, article, illustration || null, faq || null);
+    },
+    {
+      body: t.Object({
+        title: t.String(),
+        article: t.String(),
+        illustration: t.Optional(t.String()),
+        faq: t.Optional(t.String())
       })
     }
   );

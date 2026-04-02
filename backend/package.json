@@ -16,6 +16,7 @@
     "cheerio": "^1.2.0",
     "elysia": "^1.4.23",
     "fast-xml-parser": "^5.3.5",
+    "marked": "^17.0.5",
     "pdf-parse": "^2.4.5"
   }
 }
