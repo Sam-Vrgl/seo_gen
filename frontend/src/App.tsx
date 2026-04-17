@@ -28,6 +28,7 @@ function App() {
   const [includeFullPapers, setIncludeFullPapers] = useState(true);
   const [advancedMode, setAdvancedMode] = useState(false);
   const [clauses, setClauses] = useState<SearchClause[]>([defaultClause()]);
+  const [focusKeyphrase, setFocusKeyphrase] = useState('');
   
   const [articles, setArticles] = useState<any[]>([]);
   const [selectedArticles, setSelectedArticles] = useState<Set<string>>(new Set());
@@ -194,7 +195,8 @@ function App() {
           fullTextLength: a.fullText?.length ?? 0,
         })));
         const { data, error } = await api.analyze.post({
-            articles: articlesToAnalyze
+            articles: articlesToAnalyze,
+            focusKeyphrase: focusKeyphrase.trim() || undefined
         });
         
         if (error) {
@@ -483,6 +485,19 @@ function App() {
                     value={endDate} 
                     onChange={(e) => setEndDate(e.target.value)} 
                     placeholder="End Date"
+                />
+            </div>
+        </div>
+
+        <div className="filters" style={{ marginTop: '1rem' }}>
+            <div className="filter-group" style={{ width: '100%' }}>
+                <label>Focus Keyphrase:</label>
+                <input
+                    type="text"
+                    value={focusKeyphrase}
+                    onChange={(e) => setFocusKeyphrase(e.target.value)}
+                    placeholder="e.g. omega-3 fatty acids"
+                    style={{ flexGrow: 1 }}
                 />
             </div>
         </div>

@@ -5,7 +5,7 @@ import type { Article } from "./aggregator";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const model = genAI.getGenerativeModel({ model: "gemini-3-flash-preview" });
 
-export const analyzeArticles = async (articles: Article[], phrases: string[]): Promise<string> => {
+export const analyzeArticles = async (articles: Article[], phrases: string[], focusKeyphrase?: string): Promise<string> => {
   if (!process.env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is not set");
   }
@@ -32,7 +32,10 @@ ${i + 1}. **${a.title}**
    - Source: ${a.source}
    - Content: ${a.fullText ? `[FULL TEXT EXTRACT]\n${a.fullText.slice(0, 10000)}...` : `[ABSTRACT]\n${a.abstract}`}
 `).join("\n")}
-Avoid using the phrases in the list below:
+${focusKeyphrase ? `
+SEO Focus Keyphrase: "${focusKeyphrase}"
+Include this keyphrase in the article title and in the introduction paragraph. Use it naturally 2–3 times in the body of the article.
+` : ''}Avoid using the phrases in the list below:
 ${phrases.join(", ")}
 This check must be case-insensitive and match whole words or phrases, including common inflections.
 `;

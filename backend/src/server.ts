@@ -82,9 +82,9 @@ const app = new Elysia()
   .post(
     "/analyze",
     async ({ body }) => {
-      const { articles } = body;
+      const { articles, focusKeyphrase } = body;
       const { analyzeArticles } = await import("./gemini");
-      return await analyzeArticles(articles, phrases.phrases);
+      return await analyzeArticles(articles, phrases.phrases, focusKeyphrase);
     },
     {
       body: t.Object({
@@ -98,7 +98,8 @@ const app = new Elysia()
                 published_date: t.String(),
                 fullText: t.Optional(t.String())
              })
-        ) 
+        ),
+        focusKeyphrase: t.Optional(t.String())
       })
     }
   )
