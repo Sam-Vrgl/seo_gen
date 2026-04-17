@@ -497,6 +497,7 @@ function App() {
                     value={focusKeyphrase}
                     onChange={(e) => setFocusKeyphrase(e.target.value)}
                     placeholder="e.g. omega-3 fatty acids"
+                    maxLength={50}
                     style={{ flexGrow: 1 }}
                 />
             </div>

@@ -99,7 +99,7 @@ const app = new Elysia()
                 fullText: t.Optional(t.String())
              })
         ),
-        focusKeyphrase: t.Optional(t.String())
+        focusKeyphrase: t.Optional(t.String({ maxLength: 50 }))
       })
     }
   )
