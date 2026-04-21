@@ -79,72 +79,10 @@ export const generateFaq = async (article: string, phrases: string[]): Promise<s
     throw new Error("GEMINI_API_KEY is not set");
   }
 
-  const prompt = `
-Generate exactly 10 FAQ items.
-
-Source Material and Content
-
-The only source for all content must be the main body text of the article provided below.
-
-<article_text>
-${article}
-</article_text>
-
-Do not add any claims, definitions, or context not explicitly supported by the source text.
-
-All content must be paraphrased.
-
-Exception: Scientific names, measurements, and gene or protein labels may be quoted verbatim only if they appear in the source.
-
-Writing Style and Tone
-
-Tone: Maintain a calm, confident, and non-promotional tone. Avoid enthusiasm and "sales" language.
-
-Voice: Use the passive voice.
-
-Language: Use clear, direct language with simple British spelling.
-
-Readability: Target a Flesch readability score of 50 or higher.
-
-Vocabulary: Avoid complex jargon, adverbs, and buzzwords.
-
-Formatting and Structure
-
-Questions:
-
-Keep questions concise (1–2 sentences) and vary their lengths.
-
-Inclusive "we" phrasing (e.g., "How can we use...") is permitted.
-
-Answers:
-
-Each answer must be 100–150 words.
-
-Vary the specific lengths of the answers across the 10 items (e.g., one 105 words, one 140 words).
-
-Within each answer, sentence lengths must alternate (mix short and long sentences) to support high readability.
-
-"We" may be used occasionally in answers if it reflects shared practice or reasoning.
-
-Constraints and Forbidden Content
-
-Punctuation:
-
-Do not use em dashes. Commas, colons, or parentheses may be used as substitutes.
-
-Do not use ellipses (...) or exclamation marks (!).
-
-Forbidden Terms:
-
-The blocklist from ai_phrases.json must be loaded and strictly enforced.
-
-This check must be case-insensitive and match whole words or phrases, including common inflections.
-
-If a forbidden term appears in the source text, it must be rephrased neutrally or omitted.
-
-Forbidden Terms List:
-${phrases.join(", ")}
-`;
+  const promptBase = await Bun.file(import.meta.dir + "/faq_prompt.txt").text();
+  const prompt = promptBase
+    .replace("{{ARTICLE}}", article)
+    .replace("{{PHRASES}}", phrases.join(", "));
 
   try {
     console.log('[Gemini] Sending generateContent request (generateFaq)...');
@@ -178,26 +116,8 @@ export const generateIllustration = async (article: string): Promise<string> => 
     throw new Error("GEMINI_API_KEY is not set");
   }
 
-  // Create a descriptive prompt for the image. We limit the article length
-  // to avoid very large payloads, focusing on the core concepts.
-  const prompt = `
-  Generate a detailed scientific illustration based on the following article content: ${article.substring(0, 1500)}.
-
-
-Style and Layout Instructions:
-
-- Composition: Organize the image into 3 distinct, vertical panels. Each panel should focus on one primary theme from the text.
-
-- Visual Style: Clean "Modern Medical Textbook" aesthetic. Use a neutral or off-white background with a professional color palette (muted blues, teals, and greys).
-
-- Content Density: Banner-style. Prioritize clear, high-quality central illustrations over complex diagrams. Avoid cluttered flowcharts or dense data plots.
-
-- Labelling: Minimal text. Include one short title (2-4 words) per panel and no more than 2-3 simple labels per panel, make sure to not repeat labels. Ensure text is legible in a clean sans-serif font.
-
-- Technical Detail: Focus on 1-2 key anatomical or molecular features per panel (e.g., a specific organ or a simplified DNA strand).
-
-- Strict Constraint: No science-fiction elements, neon glows, or hyper-complex infographic matrices. Aim for the clarity and elegance of a Nature or Science journal figure.
-  `;
+  const promptBase = await Bun.file(import.meta.dir + "/image_prompt.txt").text();
+  const prompt = promptBase.replace("{{ARTICLE_EXCERPT}}", article.substring(0, 1500));
 
   try {
      const imagenModel = genAI.getGenerativeModel({
