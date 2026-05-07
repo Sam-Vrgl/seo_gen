@@ -42,6 +42,8 @@ function App() {
   const [faqLoading, setFaqLoading] = useState(false);
   const [illustration, setIllustration] = useState<string | null>(null);
   const [illustrationLoading, setIllustrationLoading] = useState(false);
+  const [seoMeta, setSeoMeta] = useState<string | null>(null);
+  const [seoMetaLoading, setSeoMetaLoading] = useState(false);
   const [elementorLoading, setElementorLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -75,6 +77,7 @@ function App() {
     setSummary(null);
     setFaq(null);
     setIllustration(null);
+    setSeoMeta(null);
 
     try {
       const { data, error } = await api.search.get({
@@ -118,6 +121,7 @@ function App() {
     setSummary(null);
     setFaq(null);
     setIllustration(null);
+    setSeoMeta(null);
 
     try {
       const { data, error } = await api['advanced-search'].post({
@@ -185,6 +189,7 @@ function App() {
     setSummaryLoading(true);
     setFaq(null);
     setIllustration(null);
+    setSeoMeta(null);
     try {
         console.log('[Frontend] → POST /analyze');
         console.log('[Frontend] Sending articles:', articlesToAnalyze.map(a => ({
@@ -262,6 +267,31 @@ function App() {
         setError('Failed to trigger illustration generation');
     } finally {
         setIllustrationLoading(false);
+    }
+  };
+
+  const handleGenerateSeoMeta = async () => {
+    if (!summary) return;
+
+    setSeoMetaLoading(true);
+    try {
+        console.log('[Frontend] → POST /generate-seo-meta, article length:', summary.length);
+        const { data, error } = await api['generate-seo-meta'].post({
+            article: summary
+        });
+        
+        if (error) {
+             console.error('[Frontend] /generate-seo-meta error:', error);
+             setError(error.value ? String(error.value) : 'Failed to generate SEO Meta');
+        } else {
+             console.log('[Frontend] /generate-seo-meta success');
+             setSeoMeta(data as string);
+        }
+    } catch (err) {
+        console.error('[Frontend] /generate-seo-meta caught exception:', err);
+        setError('Failed to trigger SEO meta generation');
+    } finally {
+        setSeoMetaLoading(false);
     }
   };
 
@@ -574,6 +604,14 @@ function App() {
                 >
                     {illustrationLoading ? 'Generating Illustration...' : 'Generate Illustration'}
                 </button>
+                <button 
+                    className="analyze-btn" 
+                    onClick={handleGenerateSeoMeta} 
+                    disabled={seoMetaLoading}
+                    style={{ backgroundColor: '#8b5cf6', color: 'white' }}
+                >
+                    {seoMetaLoading ? 'Generating SEO Meta...' : 'Generate SEO Meta'}
+                </button>
             </div>
         </div>
       )}
@@ -626,6 +664,36 @@ function App() {
                     style={{ backgroundColor: '#ef114a', color: 'white' }}
                 >
                     {elementorLoading ? 'Generating Elementor Section...' : 'Export to Elementor (Article & Image)'}
+                </button>
+            </div>
+        </div>
+      )}
+
+      {seoMetaLoading && (
+        <div className="summary-section loading-state" style={{ marginTop: '1rem' }}>
+            <div className="spinner"></div>
+            <p>Generating SEO Meta Description...</p>
+        </div>
+      )}
+
+      {seoMeta && !seoMetaLoading && (
+        <div className="summary-section" style={{ marginTop: '1rem', borderTop: '2px solid #eee' }}>
+            <h2>SEO Meta Description</h2>
+            <div style={{ backgroundColor: '#f3f4f6', padding: '1rem', borderRadius: '0.5rem', marginBottom: '1rem' }}>
+                <p style={{ margin: 0, color: '#374151', fontSize: '1.1rem' }}>{seoMeta}</p>
+                <p style={{ margin: '0.5rem 0 0 0', color: '#6b7280', fontSize: '0.875rem' }}>
+                    Length: {seoMeta.length} characters (Optimal: 120-156)
+                </p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <button 
+                    className="secondary-btn" 
+                    onClick={() => {
+                        navigator.clipboard.writeText(seoMeta);
+                        alert('Copied to clipboard!');
+                    }}
+                >
+                    Copy to Clipboard
                 </button>
             </div>
         </div>

@@ -183,6 +183,19 @@ const app = new Elysia()
         faq: t.Optional(t.String())
       })
     }
+  )
+  .post(
+    "/generate-seo-meta",
+    async ({ body }) => {
+      const { article } = body;
+      const { generateSeoMeta } = await import("./gemini");
+      return await generateSeoMeta(article);
+    },
+    {
+      body: t.Object({
+        article: t.String()
+      })
+    }
   );
 
 export type App = typeof app;

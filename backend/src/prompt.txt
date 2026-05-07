@@ -10,7 +10,11 @@ Do not over reference, use a article reference at most 4-5 times.
 The article should be written in a scientific style, with proper citations and references.
 Do not add any claims, definitions, or context not explicitly supported by the source text.
 
-Always start the article with a title.
+Output the article in Markdown format.
+
+Always start the article with a title on the first line using a single `#` heading (e.g. `# Article Title`).
+
+Divide the body into 4–6 sections. Each section must have a descriptive heading using `##` (e.g. `## Section Title`). Subsections, if needed, use `###`. Do not use `#` anywhere other than the title line.
 
 Writing Style and Tone
 

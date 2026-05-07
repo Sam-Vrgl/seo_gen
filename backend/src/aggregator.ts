@@ -304,8 +304,12 @@ export const fetchPmcFullText = async (pmcId: string): Promise<string | undefine
 export const fetchPmcPapers = async (query: string, limit: number = 5, startDate?: string, endDate?: string, fetchFullText: boolean = false, prebuiltQuery?: string): Promise<Article[]> => {
   try {
     let dateParams = "";
-    if (startDate) dateParams += `&mindate=${startDate.replace(/-/g, "/")}`;
-    if (endDate) dateParams += `&maxdate=${endDate.replace(/-/g, "/")}`;
+    if (startDate || endDate) {
+        const start = startDate ? startDate.replace(/-/g, "/") : "1000/01/01";
+        const today = new Date().toISOString().split("T")[0]!.replace(/-/g, "/");
+        const end = endDate ? endDate.replace(/-/g, "/") : today;
+        dateParams = `&mindate=${start}&maxdate=${end}&datetype=pdat`;
+    }
 
     const effectiveQuery = prebuiltQuery || query;
     const searchResponse = await fetch(

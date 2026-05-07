@@ -14,3 +14,5 @@ Style and Layout Instructions:
 - Technical Detail: Focus on 1-2 key anatomical or molecular features per panel (e.g., a specific organ or a simplified DNA strand).
 
 - Strict Constraint: No science-fiction elements, neon glows, or hyper-complex infographic matrices. Aim for the clarity and elegance of a Nature or Science journal figure.
+
+-Aspect ratio: 16:9

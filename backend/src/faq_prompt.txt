@@ -28,9 +28,18 @@ Vocabulary: Avoid complex jargon, adverbs, and buzzwords.
 
 Formatting and Structure
 
+Output format: Output ONLY the 10 FAQ items in Markdown. Do not include a title, introduction, or any text outside the items themselves.
+
+Each item must follow this exact pattern — a `###` heading containing the question, immediately followed by the answer paragraphs:
+
+### Question text here?
+Answer paragraph(s) here.
+
 Questions:
 
 Keep questions concise (1–2 sentences) and vary their lengths.
+
+Every question must end with a question mark (?).
 
 Inclusive "we" phrasing (e.g., "How can we use...") is permitted.
 

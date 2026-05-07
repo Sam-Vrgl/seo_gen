@@ -1,7 +1,15 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { marked } from 'marked';
+import { marked, Renderer } from 'marked';
+
+// Renderer that downgrades headings by one level so # → h2, ## → h3, etc.
+// This prevents H1 conflicts since WordPress pages already have an H1 title.
+const articleRenderer = new Renderer();
+articleRenderer.heading = ({ text, depth }: { text: string; depth: number }) => {
+    const level = Math.min(depth + 1, 6);
+    return `<h${level}>${text}</h${level}>\n`;
+};
 
 const deepClone = (obj: any) => JSON.parse(JSON.stringify(obj));
 const shortId = (len = 7) => crypto.randomBytes(Math.ceil(len / 2)).toString("hex").slice(0, len);
@@ -27,8 +35,7 @@ function stripRuntimeCaches(root: any) {
 
     function walk(node: any) {
         if (!node || typeof node !== "object") return;
-        
-        // delete matching keys in this node
+
         for (const k of Object.keys(node)) {
             if (KEY_RX.test(k)) {
                 delete node[k];
@@ -38,7 +45,6 @@ function stripRuntimeCaches(root: any) {
             if (KEY_RX.test(norm)) delete node[k];
         }
 
-        // clean settings
         if (node.settings && typeof node.settings === "object") {
             for (const k of Object.keys(node.settings)) {
                 const norm = k.replace(/[A-Z]/g, m => `_${m.toLowerCase()}`);
@@ -46,12 +52,62 @@ function stripRuntimeCaches(root: any) {
             }
         }
 
-        // recurse
         if (Array.isArray(node.elements)) node.elements.forEach(walk);
     }
 
     walk(root);
     return root;
+}
+
+function findTabsWidget(root: any): any {
+    let found: any = null;
+    walkElements(root, el => {
+        if (!found && el.elType === "widget" && el.settings && Array.isArray(el.settings.tabs)) {
+            found = el;
+        }
+    });
+    return found;
+}
+
+async function parseFaqIntoTabs(faqContent: string): Promise<Array<{tab_title: string, tab_content: string, _id: string}>> {
+    const lines = faqContent.split('\n');
+    const items: Array<{question: string, answerLines: string[]}> = [];
+    let currentQuestion: string | null = null;
+    let currentAnswerLines: string[] = [];
+
+    for (const line of lines) {
+        const headingMatch = line.match(/^#{1,4}\s+(.+)$/);
+        if (headingMatch) {
+            const text = (headingMatch[1] ?? '').trim().replace(/\*\*/g, '');
+            // Only treat headings that are actual questions (end with ?)
+            if (text.endsWith('?')) {
+                if (currentQuestion !== null) {
+                    items.push({ question: currentQuestion, answerLines: currentAnswerLines });
+                }
+                currentQuestion = text;
+                currentAnswerLines = [];
+            } else if (currentQuestion !== null) {
+                // Non-question heading ends the current answer block
+                items.push({ question: currentQuestion, answerLines: currentAnswerLines });
+                currentQuestion = null;
+                currentAnswerLines = [];
+            }
+            // Section-title headings (no ?) before any question are silently skipped
+        } else if (currentQuestion !== null) {
+            currentAnswerLines.push(line);
+        }
+    }
+    if (currentQuestion !== null && currentAnswerLines.length > 0) {
+        items.push({ question: currentQuestion, answerLines: currentAnswerLines });
+    }
+
+    const tabs = await Promise.all(items.map(async ({ question, answerLines }) => ({
+        tab_title: question,
+        tab_content: await marked.parse(answerLines.join('\n').trim()),
+        _id: shortId(7)
+    })));
+
+    return tabs;
 }
 
 export async function generateElementorArticle(title: string, markdownContent: string, illustrationBase64: string | null, faqContent: string | null = null) {
@@ -66,16 +122,10 @@ export async function generateElementorArticle(title: string, markdownContent: s
 
     const doc = deepClone(section);
 
-    let htmlContent = await marked.parse(markdownContent);
-    // Include image at the top of the text editor content if provided
+    let htmlContent = await marked.parse(markdownContent, { renderer: articleRenderer });
     if (illustrationBase64) {
         const imgHtml = `<p><img src="data:image/jpeg;base64,${illustrationBase64}" style="max-width: 100%; border-radius: 8px; margin-bottom: 2rem; display: block; margin-left: auto; margin-right: auto;" /></p>\n\n`;
         htmlContent = imgHtml + htmlContent;
-    }
-
-    if (faqContent) {
-        const faqHtml = await marked.parse(faqContent);
-        htmlContent += `\n<hr style="margin-top: 3rem; margin-bottom: 3rem; border: 0; border-top: 1px solid #eee;" />\n<h2>Frequently Asked Questions</h2>\n` + faqHtml;
     }
 
     let headingWidgetTemplate: any = null;
@@ -83,7 +133,6 @@ export async function generateElementorArticle(title: string, markdownContent: s
     let mainColumn: any = null;
 
     walkElements(doc, el => {
-        // Assume the first column is the main content column
         if (el.elType === "column" && !mainColumn) {
             mainColumn = el;
         }
@@ -103,7 +152,6 @@ export async function generateElementorArticle(title: string, markdownContent: s
 
     const finalElements = [];
 
-    // Use the first heading widget as a template for our title
     if (headingWidgetTemplate) {
         const clonedHeading = deepClone(headingWidgetTemplate);
         if (clonedHeading.settings) {
@@ -111,8 +159,7 @@ export async function generateElementorArticle(title: string, markdownContent: s
         }
         finalElements.push(clonedHeading);
     }
-    
-    // Use the first text-editor widget as a template for our article content
+
     if (textWidgetTemplate) {
         const clonedText = deepClone(textWidgetTemplate);
         if (clonedText.settings) {
@@ -121,13 +168,39 @@ export async function generateElementorArticle(title: string, markdownContent: s
         finalElements.push(clonedText);
     }
 
-    // Replace the column's children entirely with our generated content,
-    // discarding the old example article texts.
     mainColumn.elements = finalElements;
 
-    // Finally, regenerate all IDs and strip caches for a fresh importable section
     regenerateIds(doc);
     stripRuntimeCaches(doc);
+
+    if (faqContent) {
+        const faqSectionPath = path.join(process.cwd(), "..", "temp_faq", "section.json");
+        if (!fs.existsSync(faqSectionPath)) {
+            throw new Error("FAQ section template not found at " + faqSectionPath);
+        }
+        const faqSectionTemplate = JSON.parse(fs.readFileSync(faqSectionPath, "utf8"));
+
+        const faqDoc = deepClone(faqSectionTemplate);
+        regenerateIds(faqDoc);
+
+        const tabsWidget = findTabsWidget(faqDoc);
+        if (!tabsWidget) {
+            throw new Error("No toggle widget found in section.json FAQ template.");
+        }
+
+        const tabs = await parseFaqIntoTabs(faqContent);
+        tabsWidget.settings.tabs = tabs;
+        delete tabsWidget.htmlCache;
+        delete tabsWidget.settings?.htmlCache;
+        delete tabsWidget.settings?.html_cache;
+
+        stripRuntimeCaches(faqDoc);
+
+        // Append the FAQ section(s) to the article doc's elements array
+        for (const el of faqDoc.elements) {
+            doc.elements.push(el);
+        }
+    }
 
     return doc;
 }

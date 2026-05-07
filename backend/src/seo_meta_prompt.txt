@@ -1,0 +1,7 @@
+You are an expert SEO copywriter. Please write a highly engaging and optimized SEO meta description for the following article.
+The meta description MUST be between 120 and 156 characters long to fit perfectly in search engine results and the Yoast SEO plugin.
+Do not use quotes around the output. Just return the raw text of the meta description.
+If there is a main keyword evident in the article, ensure it is included naturally.
+
+Article text:
+{{ARTICLE}}
